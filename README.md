@@ -6,136 +6,141 @@ This project is experimental and should not be used in production environments w
 
 ## Overview
 
-uSync Git Edition is an experimental extension for Umbraco CMS that provides Git-aware database management capabilities. The primary goal of this project is to automatically manage Umbraco databases when switching between Git branches, enabling developers to maintain branch-specific database states during development.
+uSync Git Edition makes an Umbraco site aware of the git checkout it runs from. It covers two workflows:
 
-## Key Features
+- **Branch switching**: optionally give each branch its own database, and import from uSync when the commit changes.
+- **Git worktrees** (for example parallel Claude Code sessions, each in its own worktree): every worktree gets its own database, copied from the main checkout, its own ports, and the main checkout's media.
 
-### 🔄 Branch-Specific Database Management
-- Automatically creates and manages separate databases for different Git branches
-- Uses configurable naming templates (e.g., `Umbraco.{branch}.{ticks}`)
-- Prevents database conflicts when switching between feature branches
+Everything happens inside the site at startup. Nothing is written to `appsettings.json`: the values go into an in-memory configuration source, so they work however the site is started (Visual Studio, Rider, `dotnet run`, an AI agent).
 
-### 🧹 Automatic Database Cleanup
-- Optionally deletes database files when changing branches
-- Configurable cleanup behavior based on uSync synchronization status
-- Helps maintain clean development environments
+## What happens at startup
 
-### ⚡ Unattended Installation Support
-- Handles database configuration during Umbraco's unattended installation process
-- Integrates with Umbraco's runtime installation notifications
-- Automatically sets up Git-aware database configurations
+### In a linked worktree
 
-## Project Structure
+1. **Database**
+   - **SQLite**: the database file lives in the worktree's own `umbraco/Data` folder, so it is already separate. If it doesn't exist, it is copied from the main checkout's database with SQLite's backup API, which is safe while the main site is running.
+   - **SQL Server**: the worktree uses `{database}_wt_{worktree}` on the same server. If it doesn't exist, the main database is copied with `BACKUP ... WITH COPY_ONLY` and `RESTORE ... WITH MOVE` into the server's default data folders.
+   - If there is nothing to copy (or `Seed` is `Empty`), `InstallUnattended` is switched on so Umbraco installs a fresh database and uSync's `ImportOnFirstBoot` fills it.
+2. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
+3. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`.
 
-```
-uSyncGitRules/
-├── uSync.GitEdition/          # Core Git Edition library
-│   ├── Notifications/         # Event handlers for Umbraco notifications
-│   ├── uSyncGitService.cs    # Git operations and metadata management
-│   └── Composer.cs           # Dependency injection setup
-└── uSync.Site/               # Example Umbraco site implementation
-    ├── appsettings.json      # Configuration examples
-    └── Program.cs            # Site startup configuration
-```
+### In every checkout
 
-## Configuration (optional)
-You can control some of the setup in your `appsettings.json`:
+4. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
+5. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install.
+
+### In the main checkout
+
+6. **Tidy up**: SQL Server databases named `{database}_wt_*` whose worktree no longer exists are dropped, in the background, after startup. SQLite worktree databases go when the worktree folder is deleted.
+
+## Setup
+
+1. Reference the `uSync.GitEdition` project (or package) from the site. The composer wires everything up, so `Program.cs` needs no changes. Calling `.AdduSyncGit()` on the Umbraco builder is still supported.
+2. Set uSync up so git is the source of truth:
 
 ```json
-{
-  "Git": {
-    "Db": {
-      "DeleteOnBranchChange": false,
-      "NameByBranch": true,
-      "Template": "Umbraco.{branch}.{ticks}"
-    }
-  },
-  "uSync": {
-    "Settings": {
-      "ImportOnFirstBoot": true
-    }
+"uSync": {
+  "Settings": {
+    "ImportOnFirstBoot": true,
+    "ImportAtStartup": "None",
+    "ExportAtStartup": "None",
+    "ExportOnSave": "All"
   }
 }
 ```
 
-### Configuration Options
+`ImportAtStartup` must be `None`: if uSync's own startup import is on, it runs every boot and the commit check here stands aside. `ExportOnSave` means changes made in a worktree's backoffice land as files on that worktree's branch.
 
-- **`DeleteOnBranchChange`**: When `true`, deletes existing database files when switching branches
-- **`NameByBranch`**: When `true`, enables branch-specific database naming
-- **`Template`**: Database naming template supporting `{branch}`,`{ticks}` and `{env}` placeholders
+3. For `Seed: Empty`, or `NameByBranch`, the unattended install needs a user: set `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work).
 
-## Getting Started
+4. If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
 
-1. **Add the Extension**: Include the uSync.GitEdition project reference in your Umbraco site
-2. (optionally) **Update Configuration**: Add Git database settings to your `appsettings.json`
-3. **Initialize**: The extension will automatically handle database management during application startup
+### Claude Code hooks
 
-## How It Works
+None are needed. The site sets itself up when it starts, and logs the URL it runs on:
 
-1. **Branch Detection**: Uses LibGit2Sharp to detect the current Git branch
-2. **Database Naming**: Generates branch-specific database names using configurable templates
-3. **Synchronization Tracking**: Maintains metadata about Git commits and uSync synchronization status
-4. **Automatic Management**: Handles database creation, configuration, and cleanup based on Git state changes
+```
+uSync Git: worktree site will run on https://localhost:45590;http://localhost:45591
+```
+
+With SQL Server, a deleted worktree's database stays until the main checkout's site next starts. If you want it gone straight away, a `WorktreeRemove` hook can drop `{database}_wt_{name}` (`name` is the worktree folder, with anything other than letters, digits, `_` and `.` changed to `_`).
+
+## Configuration
+
+All optional. The defaults are shown.
+
+```json
+"Git": {
+  "Db": {
+    "NameByBranch": false,
+    "Template": "{db}.{branch}"
+  },
+  "Worktree": {
+    "Enabled": true,
+    "Seed": "Copy",
+    "ShareMedia": true,
+    "Ports": true,
+    "PortRangeStart": 45000,
+    "RemoveOrphanDatabases": true
+  },
+  "Import": {
+    "OnCommitChange": true,
+    "Group": "All",
+    "SkipWhenDirty": true
+  }
+}
+```
+
+| Setting | |
+|---|---|
+| `Db:NameByBranch` | Name the database after the branch. |
+| `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. Characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |
+| `Worktree:Enabled` | Set the site up for worktrees at all. |
+| `Worktree:Seed` | `Copy` the main checkout's database, start `Empty` (unattended install + first boot import), or `None` (leave it to you). |
+| `Worktree:ShareMedia` | Serve media from the main checkout. |
+| `Worktree:Ports` | Pick ports per worktree. |
+| `Worktree:PortRangeStart` | Start of the range ports are picked from (500 pairs). |
+| `Worktree:RemoveOrphanDatabases` | Drop SQL Server databases left by deleted worktrees. |
+| `Import:OnCommitChange` | Import at startup when the commit has changed. |
+| `Import:Group` | uSync handler group to import. |
+| `Import:SkipWhenDirty` | Don't import while the uSync folder has uncommitted changes. |
+
+## Limitations
+
+- SQL Server copies need `BACKUP` and `RESTORE` permissions, so not Azure SQL. LocalDB with `AttachDbFilename` isn't copied (the file is attached); the worktree gets an empty install instead.
+- One site per worktree: ports are picked per worktree, not per site.
+- The commit check uses HEAD only, so `SkipWhenDirty: false` is the way to import uncommitted uSync files you edited by hand.
+- On a fresh database both uSync's first boot import and the commit import run. The second finds nothing to change.
+
+## Changes from the v15 version
+
+- Targets Umbraco 17, uSync 17 and .NET 10.
+- The connection string is no longer written to `appsettings.json`; it is set in memory on every boot, so branch naming follows branch switches, not just the first install.
+- `DeleteOnBranchChange` and the `{ticks}` placeholder are gone (`{ticks}` gave a new database on every install and is now ignored).
+- The last imported commit is kept in the database instead of `uSync/git.meta`.
+- The commit-based startup import is switched back on, and only looks at the uSync folders for uncommitted changes.
 
 ## Requirements
 
-- **.NET 9.0**
-- **Umbraco CMS 15.4.1+**
-- **uSync 15.1.6+**
-- **Git repository** (project must be in a Git repository)
+- .NET 10
+- Umbraco CMS 17.3+
+- uSync 17.5+
+- A git repository
 
-## Dependencies
+## Project structure
 
-- `Umbraco.Cms` (15.4.1)
-- `uSync.BackOffice` (15.1.6)
-- `LibGit2Sharp` (0.31.0)
-
-## ⚠️ Important Warnings
-
-### Experimental Status
-- This code is **experimental** and may contain bugs
-- **Do not use in production environments**
-- Always backup your databases before testing
-- Test thoroughly in isolated development environments
-
-### Data Loss Risk
-- The database cleanup feature can **permanently delete database files**
-- Ensure you have proper backups before enabling `DeleteOnBranchChange`
-- Test the cleanup behavior in non-critical environments first
-
-### Git Repository Requirement
-- The project **must be run within a Git repository**
-- Git operations may fail if the repository is in an invalid state
-- Ensure your Git repository is properly initialized and configured
-
-## Development Workflow
-
-1. **Feature Branch**: Create a new Git branch for your feature
-2. **Automatic Setup**: The extension automatically creates a branch-specific database
-3. **Development**: Work on your feature with isolated database state
-4. **Branch Switching**: When switching branches, the extension manages database transitions
-5. **Cleanup**: Optionally clean up databases when branches are merged or deleted
-
-## Troubleshooting
-
-### Logging
-The extension provides detailed logging. Check your Umbraco logs for:
-- `uSyncGitUnattendedInstallHandler` messages
-- `uSyncGitApplicationStartingHandler` messages
-- Git operation status and errors
-
-## Contributing
-
-This is an experimental project. If you encounter issues or have suggestions:
-
-1. Test thoroughly in isolated environments
-2. Document any issues with detailed reproduction steps
-3. Consider the experimental nature when reporting bugs
+```
+uSyncGitRules/
+├── uSync.GitEdition/
+│   ├── Configuration/     # uSyncGitSettings ("Git" section)
+│   ├── Git/               # GitContext: reads .git files, works before Umbraco is up
+│   ├── Worktrees/         # configuration source, database copy/drop, port picking
+│   ├── Notifications/     # commit-aware import, startup logging, orphan clean up
+│   ├── uSyncGitService.cs # LibGit2Sharp: commit, status
+│   └── Composer.cs
+└── uSync.Site/            # example site
+```
 
 ## License
 
 This project follows the same licensing as the main uSync project. Please refer to the uSync license for details.
-
----
-
-**Remember: This is experimental software. Always backup your data and test in non-production environments first!**
