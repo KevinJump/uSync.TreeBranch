@@ -1,6 +1,8 @@
 using System.Text;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 
 using uSync.GitEdition.Configuration;
@@ -51,16 +53,22 @@ internal static class GitSiteConfigurator
 
         var settings = configuration.GetSection(uSyncGitSettings.Section).Get<uSyncGitSettings>() ?? new();
         var isWorktree = git.IsLinkedWorktree && settings.Worktree.Enabled;
+        var mainSiteRoot = isWorktree ? git.MapToMainCheckout(contentRoot) : null;
         var overrides = new Dictionary<string, string?>();
 
         state.Log(LogLevel.Information, "uSync Git: branch {branch}, worktree {worktree}", git.Branch ?? "(detached)", git.WorktreeName ?? "(main checkout)");
+
+        // first, so the connection string from a gitignored settings file is there to read.
+        if (settings.Worktree.ShareLocalSettings && mainSiteRoot is not null)
+            ShareLocalSettings(configurationBuilder, contentRoot, mainSiteRoot, state);
+
+        if (settings.uSyncDefaults ?? isWorktree)
+            AddDefault(configuration, overrides, state, "uSync:Settings:ImportOnFirstBoot", "true");
 
         ConfigureDatabase(configuration, contentRoot, git, settings, isWorktree, overrides, state);
 
         if (isWorktree)
         {
-            var mainSiteRoot = git.MapToMainCheckout(contentRoot);
-
             if (settings.Worktree.ShareMedia && mainSiteRoot is not null
                 && string.IsNullOrWhiteSpace(configuration["Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath"]))
             {
@@ -129,8 +137,63 @@ internal static class GitSiteConfigurator
             return;
 
         // no database yet, so let Umbraco install one and uSync's ImportOnFirstBoot fill it.
+        // without a user to create, the unattended install would stop the site booting.
+        if (HasUnattendedUser(configuration) is false)
+        {
+            state.Log(LogLevel.Warning, "uSync Git: {database} doesn't exist and there is no Unattended user configured, so Umbraco will show the installer", target.Name);
+            return;
+        }
+
         overrides["Umbraco:CMS:Unattended:InstallUnattended"] = "true";
         state.Log(LogLevel.Information, "uSync Git: {database} doesn't exist, it will be created by an unattended install", target.Name);
+    }
+
+    private static bool HasUnattendedUser(IConfiguration configuration)
+        => new[] { "UnattendedUserName", "UnattendedUserEmail", "UnattendedUserPassword" }
+            .All(x => string.IsNullOrWhiteSpace(configuration[$"Umbraco:CMS:Unattended:{x}"]) is false);
+
+    /// <summary>
+    ///  Set a value only when the site's own configuration doesn't, so the site's choices always win.
+    /// </summary>
+    private static void AddDefault(IConfiguration configuration, Dictionary<string, string?> overrides, GitSiteState state, string key, string value)
+    {
+        if (configuration[key] is not null) return;
+        overrides[key] = value;
+        state.Log(LogLevel.Information, "uSync Git: {key} isn't set, using {value}", key, value);
+    }
+
+    /// <summary>
+    ///  Point json settings files the site loads, but that the worktree doesn't have, at the main checkout's copy.
+    /// </summary>
+    /// <remarks>
+    ///  Only files the site already registered are touched, in the same place in the list, so the
+    ///  order (and so which value wins) is the same as it is in the main checkout.
+    /// </remarks>
+    private static void ShareLocalSettings(IConfigurationBuilder configurationBuilder, string contentRoot, string mainSiteRoot, GitSiteState state)
+    {
+        var sources = configurationBuilder.Sources;
+        for (var i = 0; i < sources.Count; i++)
+        {
+            if (sources[i] is not JsonConfigurationSource json || string.IsNullOrWhiteSpace(json.Path)) continue;
+            if (Path.IsPathRooted(json.Path)) continue; // e.g. user secrets, already shared.
+
+            var root = (json.FileProvider as PhysicalFileProvider)?.Root ?? contentRoot;
+            if (File.Exists(Path.Combine(root, json.Path))) continue;
+
+            var mainFile = Path.Combine(mainSiteRoot, json.Path);
+            if (File.Exists(mainFile) is false) continue;
+
+            // replacing the item (rather than changing it) makes the configuration reload.
+            sources[i] = new JsonConfigurationSource
+            {
+                Path = json.Path,
+                Optional = json.Optional,
+                ReloadOnChange = false,
+                FileProvider = new PhysicalFileProvider(mainSiteRoot),
+            };
+
+            state.Log(LogLevel.Information, "uSync Git: reading {file} from the main checkout", mainFile);
+        }
     }
 
     private static bool TryCopyFromMainCheckout(GitDatabase database, GitDatabase target, string contentRoot,

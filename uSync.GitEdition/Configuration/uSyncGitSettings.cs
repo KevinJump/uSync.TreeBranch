@@ -7,6 +7,12 @@ public class uSyncGitSettings
 {
     public const string Section = "Git";
 
+    /// <summary>
+    ///  Fill in the uSync settings a git workflow needs (ImportOnFirstBoot), where the site hasn't set them.
+    ///  Unset means on in a worktree and off in the main checkout.
+    /// </summary>
+    public bool? uSyncDefaults { get; set; }
+
     public GitDbSettings Db { get; set; } = new();
 
     public GitWorktreeSettings Worktree { get; set; } = new();
@@ -62,6 +68,12 @@ public class GitWorktreeSettings
     ///  Serve media from the main checkout's wwwroot/media folder (it's gitignored, so worktrees don't have one).
     /// </summary>
     public bool ShareMedia { get; set; } = true;
+
+    /// <summary>
+    ///  Read settings files the site loads (e.g. appsettings.Local.json) from the main checkout
+    ///  when they are gitignored, and so missing from the worktree.
+    /// </summary>
+    public bool ShareLocalSettings { get; set; } = true;
 
     /// <summary>
     ///  Give each worktree its own https/http port pair, so sites can run side by side.
