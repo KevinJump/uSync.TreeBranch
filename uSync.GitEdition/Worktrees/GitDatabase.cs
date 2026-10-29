@@ -129,8 +129,17 @@ internal class SqliteGitDatabase : GitDatabase
         Directory.CreateDirectory(Path.GetDirectoryName(PhysicalPath)!);
 
         // the backup API gives a consistent copy, even when the main site is running and has a WAL file.
-        using var from = new SqliteConnection($"Data Source={sqliteSource.PhysicalPath};Mode=ReadOnly;Pooling=False");
-        using var to = new SqliteConnection($"Data Source={PhysicalPath};Pooling=False");
+        using var from = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = sqliteSource.PhysicalPath,
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false,
+        }.ConnectionString);
+        using var to = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = PhysicalPath,
+            Pooling = false,
+        }.ConnectionString);
         from.Open();
         to.Open();
         from.BackupDatabase(to);
@@ -233,13 +242,13 @@ internal class SqlServerGitDatabase : GitDatabase
     }
 
     /// <summary>
-    ///  Names of the databases on the server that start with the prefix.
+    ///  Names of the databases on the server that contain the text.
     /// </summary>
-    public IReadOnlyCollection<string> FindDatabases(string prefix)
+    public IReadOnlyCollection<string> FindDatabasesContaining(string text)
     {
         using var connection = OpenMaster();
-        using var command = new SqlCommand(@"SELECT name FROM sys.databases WHERE name LIKE @prefix ESCAPE '\'", connection);
-        command.Parameters.AddWithValue("@prefix", prefix.Replace(@"\", @"\\").Replace("_", @"\_").Replace("%", @"\%") + "%");
+        using var command = new SqlCommand(@"SELECT name FROM sys.databases WHERE name LIKE @pattern ESCAPE '\'", connection);
+        command.Parameters.AddWithValue("@pattern", "%" + EscapeLike(text) + "%");
 
         var names = new List<string>();
         using var reader = command.ExecuteReader();
@@ -273,6 +282,10 @@ internal class SqlServerGitDatabase : GitDatabase
             command.Parameters.AddWithValue(name, value);
         command.ExecuteNonQuery();
     }
+
+    // _, % and [ are all wildcards in a SQL Server LIKE.
+    private static string EscapeLike(string text)
+        => text.Replace(@"\", @"\\").Replace("_", @"\_").Replace("%", @"\%").Replace("[", @"\[");
 
     private static string Quote(string name) => $"[{name.Replace("]", "]]")}]";
 

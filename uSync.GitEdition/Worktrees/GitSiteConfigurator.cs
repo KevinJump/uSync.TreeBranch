@@ -30,9 +30,11 @@ public class GitSiteState
 
     public string? Urls { get; set; }
 
-    internal List<(LogLevel Level, string Message, object?[] Args)> Messages { get; } = [];
+    internal List<(LogLevel Level, Exception? Exception, string Message, object?[] Args)> Messages { get; } = [];
 
-    internal void Log(LogLevel level, string message, params object?[] args) => Messages.Add((level, message, args));
+    internal void Log(LogLevel level, string message, params object?[] args) => Messages.Add((level, null, message, args));
+
+    internal void Log(LogLevel level, Exception exception, string message, params object?[] args) => Messages.Add((level, exception, message, args));
 }
 
 /// <summary>
@@ -50,6 +52,21 @@ internal static class GitSiteConfigurator
     private const string ProviderNameKey = "ConnectionStrings:umbracoDbDSN_ProviderName";
 
     public static GitSiteState Apply(IConfigurationBuilder configurationBuilder, IConfiguration configuration, string contentRoot)
+    {
+        try
+        {
+            return Configure(configurationBuilder, configuration, contentRoot);
+        }
+        catch (Exception ex)
+        {
+            // this is a development helper, it shouldn't stop the site booting.
+            var failed = new GitSiteState();
+            failed.Log(LogLevel.Error, ex, "uSync Git: off, setting up the site for git failed");
+            return failed;
+        }
+    }
+
+    private static GitSiteState Configure(IConfigurationBuilder configurationBuilder, IConfiguration configuration, string contentRoot)
     {
         if (IsEnabled(configuration, out var reason) is false)
         {
@@ -95,10 +112,18 @@ internal static class GitSiteConfigurator
 
             if (settings.Worktree.Ports)
             {
-                var (https, http) = PortPicker.Pick(git.WorktreeName!, settings.Worktree.PortRangeStart);
-                state.Urls = $"https://localhost:{https};http://localhost:{http}";
-                overrides["urls"] = state.Urls;
-                state.Log(LogLevel.Information, "uSync Git: worktree site will run on {urls}", state.Urls);
+                try
+                {
+                    var (https, http) = PortPicker.Pick(git.WorktreeName!, settings.Worktree.PortRangeStart);
+                    state.Urls = $"https://localhost:{https};http://localhost:{http}";
+                    overrides["urls"] = state.Urls;
+                    state.Log(LogLevel.Information, "uSync Git: worktree site will run on {urls}", state.Urls);
+                }
+                catch (Exception ex)
+                {
+                    // the database is already set up for the worktree, so carry on with the site's own urls.
+                    state.Log(LogLevel.Warning, ex, "uSync Git: couldn't pick ports for the worktree, using the site's urls");
+                }
             }
         }
 
@@ -131,8 +156,12 @@ internal static class GitSiteConfigurator
                 state.Log(LogLevel.Information, "uSync Git: default branch is {branch}", defaultBranch);
         }
 
-        var target = database.WithName(DatabaseNameFor(database.Name, git.Branch, defaultBranch, environment, settings,
-            isWorktree ? git.WorktreeName : null, database.IsSharedBetweenCheckouts));
+        // a SQLite file in the worktree's umbraco/Data is already separate, a server database isn't.
+        var worktreeSuffix = isWorktree && database.IsSharedBetweenCheckouts
+            ? WorktreeSuffix(git.GetRepositoryId(), git.WorktreeName!)
+            : null;
+
+        var target = database.WithName(DatabaseNameFor(database.Name, git.Branch, defaultBranch, environment, settings, worktreeSuffix));
         state.DatabaseName = target.Name;
 
         if (target.ConnectionString != database.ConnectionString)
@@ -261,7 +290,7 @@ internal static class GitSiteConfigurator
         // the default branch's database first, then whatever the main checkout is on now.
         var mainBranch = GitContext.Discover(mainSiteRoot)?.Branch;
         var candidates = new[] { defaultBranch, mainBranch }
-            .Select(x => DatabaseNameFor(database.Name, x, defaultBranch, environment, settings, null, database.IsSharedBetweenCheckouts))
+            .Select(x => DatabaseNameFor(database.Name, x, defaultBranch, environment, settings, null))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(x => database.WithName(x).WithDataDirectory(DataDirectory(mainSiteRoot)))
             .ToList();
@@ -294,7 +323,7 @@ internal static class GitSiteConfigurator
     ///  default branch, and only the parts we add are cleaned up, never the site's own name.
     /// </summary>
     internal static string DatabaseNameFor(string name, string? branch, string? defaultBranch, string environment,
-        uSyncGitSettings settings, string? worktree, bool isShared)
+        uSyncGitSettings settings, string? worktreeSuffix)
     {
         if (settings.Db.NameByBranch && branch is not null
             && string.Equals(branch, defaultBranch, StringComparison.OrdinalIgnoreCase) is false)
@@ -306,14 +335,18 @@ internal static class GitSiteConfigurator
                 .Replace("{ticks}", string.Empty, StringComparison.OrdinalIgnoreCase); // gave a new database every install.
         }
 
-        // a SQLite file in the worktree's umbraco/Data is already separate, a server database isn't.
-        if (worktree is not null && isShared)
-            name = WorktreeDatabaseName(name, worktree);
-
-        return name;
+        return name + worktreeSuffix;
     }
 
-    internal static string WorktreeDatabaseName(string name, string worktree) => $"{name}_wt_{Sanitize(worktree)}";
+    /// <summary>
+    ///  The part of a database name that marks it as belonging to a worktree of this clone.
+    /// </summary>
+    internal static string WorktreeMarker(string repositoryId) => $"_wt_{repositoryId}_";
+
+    /// <summary>
+    ///  Added to a worktree's database name on a shared server: {db}_wt_{repository id}_{worktree}.
+    /// </summary>
+    internal static string WorktreeSuffix(string repositoryId, string worktree) => WorktreeMarker(repositoryId) + Sanitize(worktree);
 
     internal static string Sanitize(string name)
     {

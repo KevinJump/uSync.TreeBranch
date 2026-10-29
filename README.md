@@ -30,14 +30,16 @@ A site deployed from a git clone, or run locally as Production, does nothing: no
 2. **uSync defaults**: `uSync:Settings:ImportOnFirstBoot` is turned on, unless the site sets it.
 3. **Database**
    - **SQLite**: the database file lives in the worktree's own `umbraco/Data` folder, so it is already separate. If it doesn't exist, it is copied from the main checkout's database with SQLite's backup API, which is safe while the main site is running.
-   - **SQL Server**: the worktree uses `{database}_wt_{worktree}` on the same server. If it doesn't exist, the main database is copied with `BACKUP ... WITH COPY_ONLY` and `RESTORE ... WITH MOVE` into the server's default data folders.
+   - **SQL Server**: the worktree uses `{database}_wt_{id}_{worktree}` on the same server. `{id}` is a short id for the clone, kept in `.git/usync-git-id`, so two clones (or two sites) sharing a server never mix up each other's worktree databases. If it doesn't exist, the main database is copied with `BACKUP ... WITH COPY_ONLY` and `RESTORE ... WITH MOVE` into the server's default data folders.
    - If there is nothing to copy (or `Seed` is `Empty`), `InstallUnattended` is switched on so Umbraco installs a fresh database and uSync's `ImportOnFirstBoot` fills it. This only happens when an unattended user is configured; without one, Umbraco shows its installer.
 4. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
-5. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`.
+5. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`. If no pair is free, the site keeps its own urls.
+
+If any of this fails, it's logged as an error and the site boots without the git setup.
 
 ### In every checkout
 
-6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
+6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. Only a full import (group `All`, or the configured `Import:Group`) with no errors records the commit; importing one group from the dashboard doesn't. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
 7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install. The default branch keeps the configured name, so turning this on doesn't move your existing database.
 
 ### The default branch
@@ -51,7 +53,7 @@ Only the parts that are added (branch, environment, worktree) have characters ot
 
 ### In the main checkout
 
-8. **Tidy up**: SQL Server databases named `{database}_wt_*` whose worktree no longer exists are dropped, in the background, after startup. SQLite worktree databases go when the worktree folder is deleted.
+8. **Tidy up**: SQL Server databases carrying this clone's `_wt_{id}_` marker, whose worktree git no longer knows about, are dropped in the background after startup. A worktree counts until git removes it from `.git/worktrees` (`git worktree remove` or `git worktree prune`), so a moved worktree, or one on a drive that isn't connected, keeps its database. SQLite worktree databases go when the worktree folder is deleted.
 
 ## Setup
 
@@ -92,7 +94,7 @@ None are needed. The site sets itself up when it starts, and logs the URL it run
 uSync Git: worktree site will run on https://localhost:45590;http://localhost:45591
 ```
 
-With SQL Server, a deleted worktree's database stays until the main checkout's site next starts. If you want it gone straight away, a `WorktreeRemove` hook can drop `{database}_wt_{name}` (`name` is the worktree folder, with anything other than letters, digits, `_` and `.` changed to `_`).
+With SQL Server, a deleted worktree's database stays until the main checkout's site next starts (and until `git worktree prune` if you deleted the folder by hand). If you want it gone straight away, a `WorktreeRemove` hook can drop `{database}_wt_{id}_{name}` (`id` is in `.git/usync-git-id`, `name` is the worktree folder, with anything other than letters, digits, `_` and `.` changed to `_`).
 
 ## Configuration
 

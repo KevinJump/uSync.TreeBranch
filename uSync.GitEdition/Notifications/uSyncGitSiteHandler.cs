@@ -40,10 +40,10 @@ internal class uSyncGitSiteHandler :
 
     public void Handle(UmbracoApplicationStartingNotification notification)
     {
-        foreach (var (level, message, args) in _state.Messages)
+        foreach (var (level, exception, message, args) in _state.Messages)
         {
 #pragma warning disable CA2254 // the templates are constants, they're just stored for later.
-            _logger.Log(level, message, args);
+            _logger.Log(level, exception, message, args);
 #pragma warning restore CA2254
         }
     }
@@ -70,14 +70,19 @@ internal class uSyncGitSiteHandler :
             // SQLite worktree databases live in the worktree folder, and go when it goes.
             if (database is not SqlServerGitDatabase sqlServer) return;
 
-            var prefix = GitSiteConfigurator.WorktreeDatabaseName(database.Name, string.Empty);
-            var live = _state.Git!.GetLiveWorktreeNames()
-                .Select(x => GitSiteConfigurator.WorktreeDatabaseName(database.Name, x))
+            // only this clone's worktree databases carry its id, so another clone (or another site)
+            // on the same server is never touched, whatever its databases are called.
+            var marker = GitSiteConfigurator.WorktreeMarker(_state.Git!.GetRepositoryId());
+            var worktrees = _state.Git.GetWorktreeNames()
+                .Select(GitSiteConfigurator.Sanitize)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var name in sqlServer.FindDatabases(prefix).Where(x => live.Contains(x) is false))
+            foreach (var name in sqlServer.FindDatabasesContaining(marker))
             {
-                _logger.LogInformation("uSync Git: dropping {database}, its worktree no longer exists.", name);
+                var worktree = name[(name.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase) + marker.Length)..];
+                if (worktrees.Contains(worktree)) continue;
+
+                _logger.LogInformation("uSync Git: dropping {database}, git no longer has its worktree {worktree}.", name, worktree);
                 database.WithName(name).Drop();
             }
         }

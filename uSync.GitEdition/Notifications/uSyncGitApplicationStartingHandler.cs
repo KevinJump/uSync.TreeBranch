@@ -105,9 +105,19 @@ internal class uSyncGitApplicationStartingHandler :
 
     public Task HandleAsync(uSyncImportCompletedNotification notification, CancellationToken cancellationToken)
     {
+        if (_siteState.Active is false) return Task.CompletedTask;
+
+        // only a full, clean import brings the database up to the commit. Importing one group
+        // (or one handler) from the dashboard, or an import with errors, leaves things to do.
+        if (IsFullImport(notification.Group) is false || notification.Actions.ContainsErrors())
+        {
+            _logger.LogInformation("uSync Git: {group} import wasn't a full, clean import, not saving the commit.", notification.Group ?? "(unknown)");
+            return Task.CompletedTask;
+        }
+
         try
         {
-            if (_siteState.Active && _uSyncGitService.HasRepo())
+            if (_uSyncGitService.HasRepo())
                 _uSyncGitService.SaveLastImportedCommit();
         }
         catch (Exception ex)
@@ -117,4 +127,8 @@ internal class uSyncGitApplicationStartingHandler :
 
         return Task.CompletedTask;
     }
+
+    private bool IsFullImport(string? group)
+        => group is not null
+            && (group.InvariantEquals(global::uSync.BackOffice.uSync.EverythingGroupName) || group.InvariantEquals(_settings.Group));
 }

@@ -107,26 +107,48 @@ public class GitContext
     }
 
     /// <summary>
-    ///  The names of the worktrees git knows about whose folders still exist.
+    ///  The names of the worktrees git still knows about.
     /// </summary>
-    public IReadOnlyCollection<string> GetLiveWorktreeNames()
+    /// <remarks>
+    ///  A worktree counts until git removes its folder under .git/worktrees (git worktree remove, or prune),
+    ///  not when its own folder can't be seen: a moved worktree, or one on a drive that isn't
+    ///  connected, still has work in it.
+    /// </remarks>
+    public IReadOnlyCollection<string> GetWorktreeNames()
     {
         var worktreesFolder = Path.Combine(CommonGitDirectory, "worktrees");
         if (Directory.Exists(worktreesFolder) is false) return [];
 
-        var names = new List<string>();
-        foreach (var adminFolder in Directory.GetDirectories(worktreesFolder))
-        {
-            // the gitdir file points at the .git file inside the worktree folder.
-            var gitdirFile = Path.Combine(adminFolder, "gitdir");
-            if (File.Exists(gitdirFile) is false) continue;
+        return Directory.GetDirectories(worktreesFolder).Select(x => Path.GetFileName(x)).ToList();
+    }
 
-            var worktreeGitFile = File.ReadAllText(gitdirFile).Trim();
-            if (File.Exists(Path.GetFullPath(worktreeGitFile, adminFolder)))
-                names.Add(Path.GetFileName(adminFolder));
+    /// <summary>
+    ///  A short id for this clone, shared by its main checkout and worktrees, so databases on a shared
+    ///  server can be told apart from another clone's.
+    /// </summary>
+    /// <remarks>
+    ///  Kept in a file in the common .git folder (git ignores files it doesn't know), rather than worked
+    ///  out from the path, because the same folder can be reached by more than one path (junctions).
+    /// </remarks>
+    public string GetRepositoryId()
+    {
+        var idFile = Path.Combine(CommonGitDirectory, "usync-git-id");
+
+        if (File.Exists(idFile) is false)
+        {
+            try
+            {
+                using var stream = new FileStream(idFile, FileMode.CreateNew, FileAccess.Write);
+                using var writer = new StreamWriter(stream);
+                writer.Write(Guid.NewGuid().ToString("N")[..8]);
+            }
+            catch (IOException) when (File.Exists(idFile))
+            {
+                // another site (a worktree starting at the same time) got there first.
+            }
         }
 
-        return names;
+        return File.ReadAllText(idFile).Trim();
     }
 
     private static GitContext? FromGitFile(string workingDirectory, string gitFile)

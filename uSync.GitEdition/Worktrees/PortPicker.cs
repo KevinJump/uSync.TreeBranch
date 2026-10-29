@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 
@@ -14,16 +15,25 @@ internal static class PortPicker
 
     public static (int Https, int Http) Pick(string name, int rangeStart)
     {
+        var rangeEnd = rangeStart + Pairs * 2 - 1;
+        if (rangeStart < 1024 || rangeEnd > IPEndPoint.MaxPort)
+            throw new ArgumentOutOfRangeException(nameof(rangeStart), rangeStart, $"Git:Worktree:PortRangeStart must be between 1024 and {IPEndPoint.MaxPort - Pairs * 2 + 1}");
+
+        // anything listening on any address (127.0.0.1, ::1, 0.0.0.0, ::) - Kestrel's localhost binds both loopbacks.
+        var listening = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
+            .Select(x => x.Port)
+            .ToHashSet();
+
         var start = (int)(StableHash(name) % Pairs);
 
         for (var attempt = 0; attempt < Pairs; attempt++)
         {
             var https = rangeStart + ((start + attempt) % Pairs) * 2;
-            if (IsFree(https) && IsFree(https + 1))
+            if (IsFree(https, listening) && IsFree(https + 1, listening))
                 return (https, https + 1);
         }
 
-        throw new InvalidOperationException($"No free port pair between {rangeStart} and {rangeStart + Pairs * 2}");
+        throw new InvalidOperationException($"No free port pair between {rangeStart} and {rangeEnd}");
     }
 
     /// <summary>
@@ -40,8 +50,11 @@ internal static class PortPicker
         return hash;
     }
 
-    private static bool IsFree(int port)
+    private static bool IsFree(int port, HashSet<int> listening)
     {
+        if (listening.Contains(port)) return false;
+
+        // nothing listening, but the port can still be reserved (e.g. Windows' excluded port ranges).
         try
         {
             var listener = new TcpListener(IPAddress.Loopback, port);
