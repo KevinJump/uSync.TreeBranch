@@ -13,6 +13,15 @@ uSync Git Edition makes an Umbraco site aware of the git checkout it runs from. 
 
 Everything happens inside the site at startup. Nothing is written to `appsettings.json`: the values go into an in-memory configuration source, so they work however the site is started (Visual Studio, Rider, `dotnet run`, an AI agent).
 
+## Development sites only
+
+None of this runs unless the site is a development site:
+
+- Umbraco's runtime mode (`Umbraco:CMS:Runtime:Mode`) is not `Production`, **and**
+- `Umbraco:CMS:Hosting:Debug` is `true`, or the ASP.NET environment is `Development`.
+
+A site deployed from a git clone, or run locally as Production, does nothing: no database changes, no imports, no clean up. It logs `uSync Git: off` with the reason. `Git:Enabled` overrides this either way.
+
 ## What happens at startup
 
 ### In a linked worktree
@@ -82,6 +91,7 @@ All optional. The defaults are shown.
 
 ```json
 "Git": {
+  "Enabled": null,
   "uSyncDefaults": null,
   "Db": {
     "NameByBranch": false,
@@ -106,6 +116,7 @@ All optional. The defaults are shown.
 
 | Setting | |
 |---|---|
+| `Enabled` | Turn everything on or off. Unset means on for development sites only (see above). |
 | `uSyncDefaults` | Fill in unset uSync settings (`ImportOnFirstBoot`). Unset means on in a worktree, off in the main checkout. |
 | `Db:NameByBranch` | Name the database after the branch. |
 | `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. Characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |

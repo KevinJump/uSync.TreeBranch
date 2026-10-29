@@ -3,7 +3,11 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+using Umbraco.Cms.Core.Configuration.Models;
+using Umbraco.Extensions;
 
 using uSync.GitEdition.Configuration;
 using uSync.GitEdition.Git;
@@ -16,6 +20,11 @@ namespace uSync.GitEdition.Worktrees;
 public class GitSiteState
 {
     public GitContext? Git { get; init; }
+
+    /// <summary>
+    ///  False when the site isn't a development site (or Git:Enabled is off), and nothing should happen.
+    /// </summary>
+    public bool Active => Git is not null;
 
     public string? DatabaseName { get; set; }
 
@@ -42,6 +51,13 @@ internal static class GitSiteConfigurator
 
     public static GitSiteState Apply(IConfigurationBuilder configurationBuilder, IConfiguration configuration, string contentRoot)
     {
+        if (IsEnabled(configuration, out var reason) is false)
+        {
+            var disabled = new GitSiteState();
+            disabled.Log(LogLevel.Information, "uSync Git: off, {reason}", reason);
+            return disabled;
+        }
+
         var git = GitContext.Discover(contentRoot);
         var state = new GitSiteState { Git = git };
 
@@ -146,6 +162,32 @@ internal static class GitSiteConfigurator
 
         overrides["Umbraco:CMS:Unattended:InstallUnattended"] = "true";
         state.Log(LogLevel.Information, "uSync Git: {database} doesn't exist, it will be created by an unattended install", target.Name);
+    }
+
+    /// <summary>
+    ///  Only development sites: a site deployed from a git clone shouldn't import on commit change,
+    ///  and a production main checkout certainly shouldn't drop databases.
+    /// </summary>
+    internal static bool IsEnabled(IConfiguration configuration, out string reason)
+    {
+        var enabled = configuration.GetValue<bool?>($"{uSyncGitSettings.Section}:Enabled");
+        if (enabled is not null)
+        {
+            reason = "Git:Enabled is false";
+            return enabled.Value;
+        }
+
+        if (configuration.GetRuntimeMode() == RuntimeMode.Production)
+        {
+            reason = "Umbraco's runtime mode is Production (set Git:Enabled to override)";
+            return false;
+        }
+
+        var debug = configuration.GetValue<bool>("Umbraco:CMS:Hosting:Debug");
+        var development = string.Equals(configuration[HostDefaults.EnvironmentKey], Environments.Development, StringComparison.OrdinalIgnoreCase);
+
+        reason = "the site isn't in debug or the Development environment (set Git:Enabled to override)";
+        return debug || development;
     }
 
     private static bool HasUnattendedUser(IConfiguration configuration)

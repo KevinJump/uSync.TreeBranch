@@ -13,6 +13,7 @@ using uSync.BackOffice.Configuration;
 using uSync.BackOffice.Services;
 using uSync.BackOffice.SyncHandlers.Models;
 using uSync.GitEdition.Configuration;
+using uSync.GitEdition.Worktrees;
 
 namespace uSync.GitEdition.Notifications;
 
@@ -34,6 +35,7 @@ internal class uSyncGitApplicationStartingHandler :
     private readonly ISyncService _syncService;
     private readonly ISyncConfigService _syncConfigService;
     private readonly GitImportSettings _settings;
+    private readonly GitSiteState _siteState;
 
     public uSyncGitApplicationStartingHandler(
         uSyncGitService uSyncGitService,
@@ -42,8 +44,10 @@ internal class uSyncGitApplicationStartingHandler :
         IUmbracoContextFactory umbracoContextFactory,
         ISyncService syncService,
         ISyncConfigService syncConfigService,
-        IOptions<uSyncGitSettings> settings)
+        IOptions<uSyncGitSettings> settings,
+        GitSiteState siteState)
     {
+        _siteState = siteState;
         _uSyncGitService = uSyncGitService;
         _logger = logger;
         _runtimeState = runtimeState;
@@ -55,7 +59,7 @@ internal class uSyncGitApplicationStartingHandler :
 
     public async Task HandleAsync(UmbracoApplicationStartingNotification notification, CancellationToken cancellationToken)
     {
-        if (_settings.OnCommitChange is false || _runtimeState.Level < RuntimeLevel.Run) return;
+        if (_siteState.Active is false || _settings.OnCommitChange is false || _runtimeState.Level < RuntimeLevel.Run) return;
 
         if (_uSyncGitService.HasRepo() is false)
         {
@@ -103,7 +107,7 @@ internal class uSyncGitApplicationStartingHandler :
     {
         try
         {
-            if (_uSyncGitService.HasRepo())
+            if (_siteState.Active && _uSyncGitService.HasRepo())
                 _uSyncGitService.SaveLastImportedCommit();
         }
         catch (Exception ex)

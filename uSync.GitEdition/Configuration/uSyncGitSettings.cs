@@ -8,6 +8,12 @@ public class uSyncGitSettings
     public const string Section = "Git";
 
     /// <summary>
+    ///  Turn everything on or off. Unset means on for a development site: Umbraco's runtime mode
+    ///  isn't Production, and either Umbraco:CMS:Hosting:Debug is on or the environment is Development.
+    /// </summary>
+    public bool? Enabled { get; set; }
+
+    /// <summary>
     ///  Fill in the uSync settings a git workflow needs (ImportOnFirstBoot), where the site hasn't set them.
     ///  Unset means on in a worktree and off in the main checkout.
     /// </summary>
