@@ -17,43 +17,54 @@ Everything happens inside the site at startup. Nothing is written to `appsetting
 
 ### In a linked worktree
 
-1. **Database**
+1. **Local settings**: settings files the site loads but git ignores (for example `appsettings.Local.json` holding the connection string) don't exist in a new worktree. They are read from the main checkout instead, in the same place in the configuration order.
+2. **uSync defaults**: `uSync:Settings:ImportOnFirstBoot` is turned on, unless the site sets it.
+3. **Database**
    - **SQLite**: the database file lives in the worktree's own `umbraco/Data` folder, so it is already separate. If it doesn't exist, it is copied from the main checkout's database with SQLite's backup API, which is safe while the main site is running.
    - **SQL Server**: the worktree uses `{database}_wt_{worktree}` on the same server. If it doesn't exist, the main database is copied with `BACKUP ... WITH COPY_ONLY` and `RESTORE ... WITH MOVE` into the server's default data folders.
-   - If there is nothing to copy (or `Seed` is `Empty`), `InstallUnattended` is switched on so Umbraco installs a fresh database and uSync's `ImportOnFirstBoot` fills it.
-2. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
-3. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`.
+   - If there is nothing to copy (or `Seed` is `Empty`), `InstallUnattended` is switched on so Umbraco installs a fresh database and uSync's `ImportOnFirstBoot` fills it. This only happens when an unattended user is configured; without one, Umbraco shows its installer.
+4. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
+5. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`.
 
 ### In every checkout
 
-4. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
-5. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install.
+6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
+7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install.
 
 ### In the main checkout
 
-6. **Tidy up**: SQL Server databases named `{database}_wt_*` whose worktree no longer exists are dropped, in the background, after startup. SQLite worktree databases go when the worktree folder is deleted.
+8. **Tidy up**: SQL Server databases named `{database}_wt_*` whose worktree no longer exists are dropped, in the background, after startup. SQLite worktree databases go when the worktree folder is deleted.
 
 ## Setup
 
-1. Reference the `uSync.GitEdition` project (or package) from the site. The composer wires everything up, so `Program.cs` needs no changes. Calling `.AdduSyncGit()` on the Umbraco builder is still supported.
-2. Set uSync up so git is the source of truth:
+### Minimal
+
+Reference the `uSync.GitEdition` project (or package) from the site. That's it for worktrees: the composer wires everything up, `Program.cs` needs no changes, and the settings above are filled in when the site starts in a worktree.
+
+For the main checkout, one line turns on the same uSync defaults, so a fresh clone imports on its first boot:
 
 ```json
-"uSync": {
-  "Settings": {
-    "ImportOnFirstBoot": true,
-    "ImportAtStartup": "None",
-    "ExportAtStartup": "None",
-    "ExportOnSave": "All"
-  }
+"Git": {
+  "uSyncDefaults": true
 }
 ```
 
-`ImportAtStartup` must be `None`: if uSync's own startup import is on, it runs every boot and the commit check here stands aside. `ExportOnSave` means changes made in a worktree's backoffice land as files on that worktree's branch.
+If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
 
-3. For `Seed: Empty`, or `NameByBranch`, the unattended install needs a user: set `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work).
+### What the defaults rely on
 
-4. If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
+Anything the site sets itself always wins. These are the uSync settings that matter, with uSync's own defaults, which already suit a git workflow apart from `ImportOnFirstBoot`:
+
+| uSync setting | uSync default | Here |
+|---|---|---|
+| `ImportOnFirstBoot` | `false` | `true` when unset (worktrees, or `uSyncDefaults`) |
+| `ImportAtStartup` | `None` | Leave it `None`. If it's on, uSync imports every boot and the commit check stands aside. |
+| `ExportAtStartup` | `None` | Leave it `None`, or a copied database can overwrite the branch's files. |
+| `ExportOnSave` | `All` | Backoffice changes in a worktree land as files on its branch. |
+
+A fresh install (`Seed: Empty`, `NameByBranch`, or nothing to copy) needs an unattended user: `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work). Without one the site shows Umbraco's installer instead of failing to boot.
+
+Calling `.AdduSyncGit()` on the Umbraco builder is still supported, but not needed.
 
 ### Claude Code hooks
 
@@ -71,6 +82,7 @@ All optional. The defaults are shown.
 
 ```json
 "Git": {
+  "uSyncDefaults": null,
   "Db": {
     "NameByBranch": false,
     "Template": "{db}.{branch}"
@@ -79,6 +91,7 @@ All optional. The defaults are shown.
     "Enabled": true,
     "Seed": "Copy",
     "ShareMedia": true,
+    "ShareLocalSettings": true,
     "Ports": true,
     "PortRangeStart": 45000,
     "RemoveOrphanDatabases": true
@@ -93,11 +106,13 @@ All optional. The defaults are shown.
 
 | Setting | |
 |---|---|
+| `uSyncDefaults` | Fill in unset uSync settings (`ImportOnFirstBoot`). Unset means on in a worktree, off in the main checkout. |
 | `Db:NameByBranch` | Name the database after the branch. |
 | `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. Characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |
 | `Worktree:Enabled` | Set the site up for worktrees at all. |
 | `Worktree:Seed` | `Copy` the main checkout's database, start `Empty` (unattended install + first boot import), or `None` (leave it to you). |
 | `Worktree:ShareMedia` | Serve media from the main checkout. |
+| `Worktree:ShareLocalSettings` | Read gitignored settings files the site loads from the main checkout. |
 | `Worktree:Ports` | Pick ports per worktree. |
 | `Worktree:PortRangeStart` | Start of the range ports are picked from (500 pairs). |
 | `Worktree:RemoveOrphanDatabases` | Drop SQL Server databases left by deleted worktrees. |
