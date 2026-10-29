@@ -1,16 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-		<PackageReference Include="Umbraco.Cms.Web.Website" Version="15.4.1" />
-		<PackageReference Include="Umbraco.Cms.Api.Management" Version="15.4.1" />
-		<PackageReference Include="uSync.BackOffice" Version="15.1.6" />
+		<PackageReference Include="Umbraco.Cms.Web.Website" Version="17.3.0" />
+		<PackageReference Include="Umbraco.Cms.Api.Management" Version="17.3.0" />
+		<PackageReference Include="Umbraco.Cms.Persistence.Sqlite" Version="17.3.0" />
+		<PackageReference Include="Umbraco.Cms.Persistence.SqlServer" Version="17.3.0" />
+		<PackageReference Include="uSync.BackOffice" Version="17.5.1" />
 
 	</ItemGroup>
 
