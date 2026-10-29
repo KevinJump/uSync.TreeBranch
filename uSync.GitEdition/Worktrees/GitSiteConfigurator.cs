@@ -122,7 +122,17 @@ internal static class GitSiteConfigurator
             return;
         }
 
-        var target = database.WithName(DatabaseNameFor(database.Name, git.Branch, environment, settings, isWorktree ? git.WorktreeName : null, database.IsSharedBetweenCheckouts));
+        var defaultBranch = string.IsNullOrWhiteSpace(settings.DefaultBranch) ? git.FindDefaultBranch() : settings.DefaultBranch;
+        if (settings.Db.NameByBranch)
+        {
+            if (defaultBranch is null)
+                state.Log(LogLevel.Warning, "uSync Git: can't work out the default branch, so every branch gets its own database name. Set Git:DefaultBranch to keep the configured name on it.");
+            else
+                state.Log(LogLevel.Information, "uSync Git: default branch is {branch}", defaultBranch);
+        }
+
+        var target = database.WithName(DatabaseNameFor(database.Name, git.Branch, defaultBranch, environment, settings,
+            isWorktree ? git.WorktreeName : null, database.IsSharedBetweenCheckouts));
         state.DatabaseName = target.Name;
 
         if (target.ConnectionString != database.ConnectionString)
@@ -149,7 +159,7 @@ internal static class GitSiteConfigurator
             return;
         }
 
-        if (seed == WorktreeSeed.Copy && TryCopyFromMainCheckout(database, target, contentRoot, git, environment, settings, state))
+        if (seed == WorktreeSeed.Copy && TryCopyFromMainCheckout(database, target, contentRoot, git, defaultBranch, environment, settings, state))
             return;
 
         // no database yet, so let Umbraco install one and uSync's ImportOnFirstBoot fill it.
@@ -239,7 +249,7 @@ internal static class GitSiteConfigurator
     }
 
     private static bool TryCopyFromMainCheckout(GitDatabase database, GitDatabase target, string contentRoot,
-        GitContext git, string environment, uSyncGitSettings settings, GitSiteState state)
+        GitContext git, string? defaultBranch, string environment, uSyncGitSettings settings, GitSiteState state)
     {
         var mainSiteRoot = git.MapToMainCheckout(contentRoot);
         if (mainSiteRoot is null)
@@ -248,16 +258,21 @@ internal static class GitSiteConfigurator
             return false;
         }
 
+        // the default branch's database first, then whatever the main checkout is on now.
         var mainBranch = GitContext.Discover(mainSiteRoot)?.Branch;
-        var source = database
-            .WithName(DatabaseNameFor(database.Name, mainBranch, environment, settings, null, database.IsSharedBetweenCheckouts))
-            .WithDataDirectory(DataDirectory(mainSiteRoot));
+        var candidates = new[] { defaultBranch, mainBranch }
+            .Select(x => DatabaseNameFor(database.Name, x, defaultBranch, environment, settings, null, database.IsSharedBetweenCheckouts))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(x => database.WithName(x).WithDataDirectory(DataDirectory(mainSiteRoot)))
+            .ToList();
 
+        GitDatabase? source = null;
         try
         {
-            if (source.Exists() is false)
+            source = candidates.FirstOrDefault(x => x.Exists());
+            if (source is null)
             {
-                state.Log(LogLevel.Warning, "uSync Git: the main checkout's database {database} doesn't exist, nothing to copy", source.Name);
+                state.Log(LogLevel.Warning, "uSync Git: the main checkout's database {database} doesn't exist, nothing to copy", candidates[0].Name);
                 return false;
             }
 
@@ -268,31 +283,37 @@ internal static class GitSiteConfigurator
         }
         catch (Exception ex)
         {
-            state.Log(LogLevel.Error, "uSync Git: copying {source} to {target} failed: {error}", source.Name, target.Name, ex.Message);
+            state.Log(LogLevel.Error, "uSync Git: copying {source} to {target} failed: {error}", source?.Name, target.Name, ex.Message);
             try { target.Drop(); } catch { /* leave whatever is there, the install will tell us */ }
             return false;
         }
     }
 
-    internal static string DatabaseNameFor(string name, string? branch, string environment, uSyncGitSettings settings, string? worktree, bool isShared)
+    /// <summary>
+    ///  The database name for a branch (and worktree). The configured name is never changed for the
+    ///  default branch, and only the parts we add are cleaned up, never the site's own name.
+    /// </summary>
+    internal static string DatabaseNameFor(string name, string? branch, string? defaultBranch, string environment,
+        uSyncGitSettings settings, string? worktree, bool isShared)
     {
-        if (settings.Db.NameByBranch && branch is not null)
+        if (settings.Db.NameByBranch && branch is not null
+            && string.Equals(branch, defaultBranch, StringComparison.OrdinalIgnoreCase) is false)
         {
             name = settings.Db.Template
                 .Replace("{db}", name, StringComparison.OrdinalIgnoreCase)
-                .Replace("{branch}", branch, StringComparison.OrdinalIgnoreCase)
-                .Replace("{env}", environment, StringComparison.OrdinalIgnoreCase)
+                .Replace("{branch}", Sanitize(branch), StringComparison.OrdinalIgnoreCase)
+                .Replace("{env}", Sanitize(environment), StringComparison.OrdinalIgnoreCase)
                 .Replace("{ticks}", string.Empty, StringComparison.OrdinalIgnoreCase); // gave a new database every install.
         }
 
         // a SQLite file in the worktree's umbraco/Data is already separate, a server database isn't.
         if (worktree is not null && isShared)
-            name = $"{name}{WorktreeSuffix}{worktree}";
+            name = WorktreeDatabaseName(name, worktree);
 
-        return Sanitize(name);
+        return name;
     }
 
-    internal const string WorktreeSuffix = "_wt_";
+    internal static string WorktreeDatabaseName(string name, string worktree) => $"{name}_wt_{Sanitize(worktree)}";
 
     internal static string Sanitize(string name)
     {

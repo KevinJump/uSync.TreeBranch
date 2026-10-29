@@ -78,6 +78,35 @@ public class GitContext
     }
 
     /// <summary>
+    ///  Work out the repository's default branch: the branch origin's HEAD points at (set by git clone),
+    ///  otherwise main or master if there is a local branch with that name.
+    /// </summary>
+    public string? FindDefaultBranch()
+    {
+        // symbolic refs are never packed, so this is always a file when it exists.
+        var originHead = Path.Combine(CommonGitDirectory, "refs", "remotes", "origin", "HEAD");
+        if (File.Exists(originHead))
+        {
+            const string prefix = "ref: refs/remotes/origin/";
+            var head = File.ReadAllText(originHead).Trim();
+            if (head.StartsWith(prefix, StringComparison.Ordinal))
+                return head[prefix.Length..];
+        }
+
+        return new[] { "main", "master" }.FirstOrDefault(HasLocalBranch);
+    }
+
+    private bool HasLocalBranch(string branch)
+    {
+        if (File.Exists(Path.Combine(CommonGitDirectory, "refs", "heads", branch)))
+            return true;
+
+        var packedRefs = Path.Combine(CommonGitDirectory, "packed-refs");
+        return File.Exists(packedRefs)
+            && File.ReadLines(packedRefs).Any(x => x.EndsWith($" refs/heads/{branch}", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     ///  The names of the worktrees git knows about whose folders still exist.
     /// </summary>
     public IReadOnlyCollection<string> GetLiveWorktreeNames()

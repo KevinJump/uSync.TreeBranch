@@ -70,9 +70,9 @@ internal class uSyncGitSiteHandler :
             // SQLite worktree databases live in the worktree folder, and go when it goes.
             if (database is not SqlServerGitDatabase sqlServer) return;
 
-            var prefix = database.Name + GitSiteConfigurator.WorktreeSuffix;
+            var prefix = GitSiteConfigurator.WorktreeDatabaseName(database.Name, string.Empty);
             var live = _state.Git!.GetLiveWorktreeNames()
-                .Select(x => GitSiteConfigurator.Sanitize(prefix + x))
+                .Select(x => GitSiteConfigurator.WorktreeDatabaseName(database.Name, x))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var name in sqlServer.FindDatabases(prefix).Where(x => live.Contains(x) is false))

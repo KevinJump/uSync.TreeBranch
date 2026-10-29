@@ -38,7 +38,16 @@ A site deployed from a git clone, or run locally as Production, does nothing: no
 ### In every checkout
 
 6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
-7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install.
+7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install. The default branch keeps the configured name, so turning this on doesn't move your existing database.
+
+### The default branch
+
+The default branch is, in order: `Git:DefaultBranch` if set, the branch `origin/HEAD` points at (set by `git clone`), then `main` or `master` if there's a local branch with that name. It decides two things:
+
+- With `NameByBranch`, it keeps the configured database name. If it can't be worked out, every branch is named and a warning is logged.
+- A worktree copies the default branch's database, whichever branch the main checkout is on. If that database doesn't exist, it copies the main checkout's current one.
+
+Only the parts that are added (branch, environment, worktree) have characters other than letters, digits, `_` and `.` changed to `_`. The configured name is never touched.
 
 ### In the main checkout
 
@@ -93,6 +102,7 @@ All optional. The defaults are shown.
 "Git": {
   "Enabled": null,
   "uSyncDefaults": null,
+  "DefaultBranch": null,
   "Db": {
     "NameByBranch": false,
     "Template": "{db}.{branch}"
@@ -118,8 +128,9 @@ All optional. The defaults are shown.
 |---|---|
 | `Enabled` | Turn everything on or off. Unset means on for development sites only (see above). |
 | `uSyncDefaults` | Fill in unset uSync settings (`ImportOnFirstBoot`). Unset means on in a worktree, off in the main checkout. |
-| `Db:NameByBranch` | Name the database after the branch. |
-| `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. Characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |
+| `DefaultBranch` | The default branch. Unset means work it out (see above). |
+| `Db:NameByBranch` | Name the database after the branch, except on the default branch. |
+| `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. In the branch and environment, characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |
 | `Worktree:Enabled` | Set the site up for worktrees at all. |
 | `Worktree:Seed` | `Copy` the main checkout's database, start `Empty` (unattended install + first boot import), or `None` (leave it to you). |
 | `Worktree:ShareMedia` | Serve media from the main checkout. |

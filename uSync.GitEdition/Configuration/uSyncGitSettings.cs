@@ -19,6 +19,12 @@ public class uSyncGitSettings
     /// </summary>
     public bool? uSyncDefaults { get; set; }
 
+    /// <summary>
+    ///  The repository's default branch. Unset means work it out: origin's HEAD, then main or master.
+    ///  The default branch keeps the configured database name, and worktrees copy its database.
+    /// </summary>
+    public string? DefaultBranch { get; set; }
+
     public GitDbSettings Db { get; set; } = new();
 
     public GitWorktreeSettings Worktree { get; set; } = new();
