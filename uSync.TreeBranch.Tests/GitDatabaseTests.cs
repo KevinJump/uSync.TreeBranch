@@ -84,4 +84,41 @@ public class GitDatabaseTests
             Directory.Delete(folder, true);
         }
     }
+
+    [Fact]
+    public void Sqlite_CopyFrom_ClearsTheServerRegistrations()
+    {
+        var folder = Directory.CreateTempSubdirectory("usync-git-db-").FullName;
+        try
+        {
+            var source = (SqliteGitDatabase)GitDatabase.Create("Data Source=|DataDirectory|/source.sqlite.db", null, folder)!;
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={source.PhysicalPath};Pooling=false"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "CREATE TABLE umbracoServer (computerName TEXT); INSERT INTO umbracoServer VALUES ('main');"
+                    + "CREATE TABLE umbracoCacheInstruction (id INTEGER); INSERT INTO umbracoCacheInstruction VALUES (1);";
+                command.ExecuteNonQuery();
+            }
+
+            var target = (SqliteGitDatabase)source.WithName("target");
+            target.CopyFrom(source);
+
+            using var check = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={target.PhysicalPath};Pooling=false");
+            check.Open();
+            using var read = check.CreateCommand();
+            read.CommandText = "SELECT (SELECT COUNT(*) FROM umbracoServer) + (SELECT COUNT(*) FROM umbracoCacheInstruction)";
+            Assert.Equal(0L, read.ExecuteScalar());
+
+            read.CommandText = "SELECT COUNT(*) FROM umbracoServer";
+            using var sourceCheck = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={source.PhysicalPath};Pooling=false");
+            sourceCheck.Open();
+            read.Connection = sourceCheck;
+            Assert.Equal(1L, read.ExecuteScalar());
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
 }
