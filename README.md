@@ -1,5 +1,7 @@
 ﻿# uSync TreeBranch
 
+[![NuGet](https://img.shields.io/nuget/vpre/uSync.TreeBranch?label=nuget)](https://www.nuget.org/packages/uSync.TreeBranch)
+
 > [!WARNING]
 > 🚨 ** EARLY DEVELOPMENT - TEST BEFORE USE** 🚨
 > 
