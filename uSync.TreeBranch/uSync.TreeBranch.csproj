@@ -20,7 +20,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+		<PackageReference Include="LibGit2Sharp" Version="0.32.0" />
 		<PackageReference Include="Umbraco.Cms.Web.Website" Version="17.3.0" />
 		<PackageReference Include="Umbraco.Cms.Api.Management" Version="17.3.0" />
 		<PackageReference Include="Umbraco.Cms.Persistence.Sqlite" Version="17.3.0" />
