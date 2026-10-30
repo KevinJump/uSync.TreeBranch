@@ -21,9 +21,9 @@
 		<Copyright>Jumoo @ 2013-2026</Copyright>
 
 		<PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/KevinJump/uSyncGitRules</PackageProjectUrl>
+		<PackageProjectUrl>https://github.com/KevinJump/uSync.TreeBranch</PackageProjectUrl>
 
-		<RepositoryUrl>https://github.com/KevinJump/uSyncGitRules</RepositoryUrl>
+		<RepositoryUrl>https://github.com/KevinJump/uSync.TreeBranch</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 	</PropertyGroup>
 
