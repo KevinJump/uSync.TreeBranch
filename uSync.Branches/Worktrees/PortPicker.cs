@@ -3,7 +3,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 
-namespace uSync.GitEdition.Worktrees;
+namespace uSync.Branches.Worktrees;
 
 /// <summary>
 ///  Picks a stable https/http port pair for a worktree: the same name gets the same ports

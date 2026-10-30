@@ -1,4 +1,4 @@
-﻿# uSync Git Edition
+﻿# uSync Branches
 
 🚨 **EXPERIMENTAL CODE - USE WITH CAUTION** 🚨
 
@@ -8,7 +8,7 @@ Makes an Umbraco development site aware of the git checkout it runs from. Each g
 
 ## Setup
 
-Reference the `uSync.GitEdition` project (or package) from the site. That's it for worktrees: the composer wires everything up and `Program.cs` needs no changes.
+Reference the `uSync.Branches` project (or package) from the site. That's it for worktrees: the composer wires everything up and `Program.cs` needs no changes.
 
 For the main checkout, one line turns on the same uSync defaults, so a fresh clone imports on its first boot:
 
@@ -163,7 +163,7 @@ All optional. The defaults are shown.
 
 ```
 uSyncGitRules/
-├── uSync.GitEdition/
+├── uSync.Branches/
 │   ├── Configuration/     # uSyncGitSettings ("Git" section)
 │   ├── Git/               # GitContext: reads .git files, works before Umbraco is up
 │   ├── Worktrees/         # configuration source, database copy/drop, port picking

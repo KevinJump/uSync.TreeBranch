@@ -9,10 +9,10 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Extensions;
 
-using uSync.GitEdition.Configuration;
-using uSync.GitEdition.Git;
+using uSync.Branches.Configuration;
+using uSync.Branches.Git;
 
-namespace uSync.GitEdition.Worktrees;
+namespace uSync.Branches.Worktrees;
 
 /// <summary>
 ///  What the configurator did. Messages are kept and logged by the caller, the configurator runs before it has a logger.

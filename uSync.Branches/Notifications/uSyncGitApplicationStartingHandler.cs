@@ -12,10 +12,10 @@ using uSync.BackOffice;
 using uSync.BackOffice.Configuration;
 using uSync.BackOffice.Services;
 using uSync.BackOffice.SyncHandlers.Models;
-using uSync.GitEdition.Configuration;
-using uSync.GitEdition.Worktrees;
+using uSync.Branches.Configuration;
+using uSync.Branches.Worktrees;
 
-namespace uSync.GitEdition.Notifications;
+namespace uSync.Branches.Notifications;
 
 /// <summary>
 ///  Imports at startup when the git commit has moved on since the last import into this database.

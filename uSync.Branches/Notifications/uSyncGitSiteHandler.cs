@@ -6,10 +6,10 @@ using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
-using uSync.GitEdition.Configuration;
-using uSync.GitEdition.Worktrees;
+using uSync.Branches.Configuration;
+using uSync.Branches.Worktrees;
 
-namespace uSync.GitEdition.Notifications;
+namespace uSync.Branches.Notifications;
 
 /// <summary>
 ///  Tidies up databases left behind by deleted worktrees.

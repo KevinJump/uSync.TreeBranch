@@ -1,7 +1,7 @@
-namespace uSync.GitEdition.Configuration;
+namespace uSync.Branches.Configuration;
 
 /// <summary>
-///  Settings for uSync Git Edition, read from the "Git" section of appsettings.
+///  Settings for uSync Branches, read from the "Git" section of appsettings.
 /// </summary>
 public class uSyncGitSettings
 {

@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 
 using Umbraco.Cms.Core.Services;
 
-using uSync.GitEdition.Git;
-using uSync.GitEdition.Worktrees;
+using uSync.Branches.Git;
+using uSync.Branches.Worktrees;
 
-namespace uSync.GitEdition;
+namespace uSync.Branches;
 
 internal class uSyncGitService
 {

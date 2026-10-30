@@ -1,4 +1,4 @@
-using uSync.GitEdition;
+using uSync.Branches;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
