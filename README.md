@@ -162,7 +162,7 @@ All optional. The defaults are shown.
 ## Project structure
 
 ```
-uSyncGitRules/
+uSync.TreeBranch/
 ├── uSync.TreeBranch/
 │   ├── Configuration/     # uSyncGitSettings ("Git" section)
 │   ├── Git/               # GitContext: reads .git files, works before Umbraco is up
@@ -170,6 +170,7 @@ uSyncGitRules/
 │   ├── Notifications/     # commit-aware import, orphan clean up
 │   ├── uSyncGitService.cs # LibGit2Sharp: commit, status
 │   └── Composer.cs        # applies the git setup and logs what it did
+├── uSync.TreeBranch.Tests/ # xunit tests, run by the PR build
 └── uSync.Site/            # example site
 ```
 
