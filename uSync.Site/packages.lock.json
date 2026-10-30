@@ -1851,7 +1851,7 @@
           "uSync.Backoffice.Management.Api": "17.5.1"
         }
       },
-      "usync.branches": {
+      "usync.treebranch": {
         "type": "Project",
         "dependencies": {
           "LibGit2Sharp": "[0.31.0, )",

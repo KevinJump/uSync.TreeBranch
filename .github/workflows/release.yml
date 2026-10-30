@@ -25,7 +25,7 @@ env:
   out_folder: ./build-out/
   # the package project is the whole of what ships - not the solution, and not the
   # uSync.Site test site.
-  package_project: ./uSync.Branches/uSync.Branches.csproj
+  package_project: ./uSync.TreeBranch/uSync.TreeBranch.csproj
   nuget_source: https://api.nuget.org/v3/index.json
 
 jobs:

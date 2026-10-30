@@ -9,11 +9,11 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 
 using uSync.BackOffice;
-using uSync.Branches.Configuration;
-using uSync.Branches.Notifications;
-using uSync.Branches.Worktrees;
+using uSync.TreeBranch.Configuration;
+using uSync.TreeBranch.Notifications;
+using uSync.TreeBranch.Worktrees;
 
-namespace uSync.Branches;
+namespace uSync.TreeBranch;
 
 [ComposeAfter(typeof(uSync.BackOffice.uSyncBackOfficeComposer))]
 internal class Composer : IComposer
@@ -25,7 +25,7 @@ internal class Composer : IComposer
 public static class uSyncGitBootExtensions
 {
     /// <summary>
-    ///  Add uSync Branches. The composer calls this, so you only need it in Program.cs
+    ///  Add uSync TreeBranch. The composer calls this, so you only need it in Program.cs
     ///  if you want the git settings applied before other code reads the configuration.
     /// </summary>
     public static IUmbracoBuilder AdduSyncGit(this IUmbracoBuilder builder)

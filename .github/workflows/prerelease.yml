@@ -20,7 +20,7 @@ env:
   out_folder: ./build-out/
   # the package project is the whole of what ships - not the solution, and not the
   # uSync.Site test site.
-  package_project: ./uSync.Branches/uSync.Branches.csproj
+  package_project: ./uSync.TreeBranch/uSync.TreeBranch.csproj
   # the version prereleases build towards until the first release is tagged on this branch.
   first_version: 17.0.0
 

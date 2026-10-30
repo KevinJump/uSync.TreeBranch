@@ -1,7 +1,7 @@
-namespace uSync.Branches.Configuration;
+namespace uSync.TreeBranch.Configuration;
 
 /// <summary>
-///  Settings for uSync Branches, read from the "Git" section of appsettings.
+///  Settings for uSync TreeBranch, read from the "Git" section of appsettings.
 /// </summary>
 public class uSyncGitSettings
 {

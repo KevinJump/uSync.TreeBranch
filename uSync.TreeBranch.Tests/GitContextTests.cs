@@ -1,8 +1,8 @@
 using System.Diagnostics;
 
-using uSync.Branches.Git;
+using uSync.TreeBranch.Git;
 
-namespace uSync.Branches.Tests;
+namespace uSync.TreeBranch.Tests;
 
 /// <summary>
 ///  Runs real git against a throwaway repository with a linked worktree.

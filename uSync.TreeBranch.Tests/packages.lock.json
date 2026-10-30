@@ -1971,7 +1971,7 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "usync.branches": {
+      "usync.treebranch": {
         "type": "Project",
         "dependencies": {
           "LibGit2Sharp": "[0.31.0, )",

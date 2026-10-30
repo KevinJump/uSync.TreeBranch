@@ -7,8 +7,8 @@
 	</PropertyGroup>
 
 	<PropertyGroup>
-		<PackageId>uSync.Branches</PackageId>
-		<Title>uSync Branches</Title>
+		<PackageId>uSync.TreeBranch</PackageId>
+		<Title>uSync TreeBranch</Title>
 		<Description>[Experimental] Makes an Umbraco development site aware of the git checkout it runs from: a database, ports and shared media per git worktree, and a uSync import when the commit changes.</Description>
 		<PackageTags>umbraco-marketplace uSync git worktree</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -16,7 +16,7 @@
 
 	<ItemGroup>
 		<None Include="..\README.md" Pack="true" PackagePath="\" />
-		<InternalsVisibleTo Include="uSync.Branches.Tests" />
+		<InternalsVisibleTo Include="uSync.TreeBranch.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>

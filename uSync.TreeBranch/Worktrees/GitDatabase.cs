@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 
-namespace uSync.Branches.Worktrees;
+namespace uSync.TreeBranch.Worktrees;
 
 /// <summary>
 ///  The site database, with just enough knowledge of the provider to rename, copy and drop it.

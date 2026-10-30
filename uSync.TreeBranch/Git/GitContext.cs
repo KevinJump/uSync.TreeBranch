@@ -1,4 +1,4 @@
-namespace uSync.Branches.Git;
+namespace uSync.TreeBranch.Git;
 
 /// <summary>
 ///  What we know about the git checkout a site is running from.

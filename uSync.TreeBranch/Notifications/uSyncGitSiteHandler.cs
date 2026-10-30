@@ -6,10 +6,10 @@ using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
-using uSync.Branches.Configuration;
-using uSync.Branches.Worktrees;
+using uSync.TreeBranch.Configuration;
+using uSync.TreeBranch.Worktrees;
 
-namespace uSync.Branches.Notifications;
+namespace uSync.TreeBranch.Notifications;
 
 /// <summary>
 ///  Tidies up databases left behind by deleted worktrees.

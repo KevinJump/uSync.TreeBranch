@@ -17,7 +17,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\uSync.Branches\uSync.Branches.csproj" />
+		<ProjectReference Include="..\uSync.TreeBranch\uSync.TreeBranch.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

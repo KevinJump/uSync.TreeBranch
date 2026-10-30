@@ -1,6 +1,6 @@
-using uSync.Branches.Worktrees;
+using uSync.TreeBranch.Worktrees;
 
-namespace uSync.Branches.Tests;
+namespace uSync.TreeBranch.Tests;
 
 public class GitDatabaseTests
 {
