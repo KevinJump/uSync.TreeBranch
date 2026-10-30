@@ -1,8 +1,9 @@
 ﻿# uSync TreeBranch
 
-🚨 **EXPERIMENTAL CODE - USE WITH CAUTION** 🚨
-
-This project is experimental and should not be used in production environments without thorough testing.
+> [!WARNING]
+> 🚨 ** EARLY DEVELOPMENT - TEST BEFORE USE** 🚨
+> 
+> This project is in early development, you should test it works for you before using in anger.
 
 Makes an Umbraco development site aware of the git checkout it runs from. Each git worktree (for example a parallel Claude Code session) gets its own database, ports and shared media, and uSync imports when the commit changes.
 
