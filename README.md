@@ -152,6 +152,20 @@ All optional. The defaults are shown.
 - The commit check uses HEAD only, so `SkipWhenDirty: false` is the way to import uncommitted uSync files you edited by hand.
 - On a fresh database both uSync's first boot import and the commit import are requested. uSync skips the second as a duplicate.
 
+### Merging parallel changes to the same document type
+
+Two branches that each add an allowed child to the same document type (the usual "new page type" work) both write it as the next `SortOrder` in that type's `.config` file, so the merge always conflicts:
+
+```
+<<<<<<< HEAD
+    <ContentType Key="1179ffc9-..." SortOrder="8">eventPage</ContentType>
+=======
+    <ContentType Key="bf61058f-..." SortOrder="8">faqPage</ContentType>
+>>>>>>> feature/faq-page
+```
+
+Keep both lines and renumber the second (`SortOrder="9"`), then commit. The same applies to other lists in the file, such as compositions and allowed templates: keep every entry, and make the sort orders unique.
+
 ## Changes from the v15 version
 
 - Targets Umbraco 17, uSync 17 and .NET 10.
