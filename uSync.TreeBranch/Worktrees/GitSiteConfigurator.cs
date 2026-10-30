@@ -95,7 +95,7 @@ internal static class GitSiteConfigurator
         if (settings.Worktree.ShareLocalSettings && mainSiteRoot is not null)
             ShareLocalSettings(configurationBuilder, contentRoot, mainSiteRoot, state);
 
-        if (settings.uSyncDefaults ?? isWorktree)
+        if (settings.uSyncDefaults)
             AddDefault(configuration, overrides, state, "uSync:Settings:ImportOnFirstBoot", "true");
 
         ConfigureDatabase(configuration, contentRoot, git, settings, isWorktree, overrides, state);

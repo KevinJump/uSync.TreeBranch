@@ -15,9 +15,8 @@ public class uSyncGitSettings
 
     /// <summary>
     ///  Fill in the uSync settings a git workflow needs (ImportOnFirstBoot), where the site hasn't set them.
-    ///  Unset means on in a worktree and off in the main checkout.
     /// </summary>
-    public bool? uSyncDefaults { get; set; }
+    public bool uSyncDefaults { get; set; } = true;
 
     /// <summary>
     ///  The repository's default branch. Unset means work it out: origin's HEAD, then main or master.
