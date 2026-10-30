@@ -11,6 +11,12 @@ internal abstract class GitDatabase
     public const string SqliteProvider = "Microsoft.Data.Sqlite";
     public const string SqlServerProvider = "Microsoft.Data.SqlClient";
 
+    /// <summary>
+    ///  Umbraco's load balancing tables. A copy brings the main site's server registration with it, and
+    ///  that site is running, so the copy would start as a Subscriber. Clearing them makes it a single server.
+    /// </summary>
+    protected static readonly string[] ServerTables = ["umbracoServer", "umbracoLastSynced", "umbracoCacheInstruction"];
+
     public abstract string ProviderName { get; }
 
     /// <summary>
@@ -150,6 +156,18 @@ internal class SqliteGitDatabase : GitDatabase
         from.Open();
         to.Open();
         from.BackupDatabase(to);
+
+        foreach (var table in ServerTables)
+        {
+            using var command = to.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = @table";
+            command.Parameters.AddWithValue("@table", table);
+            if (Convert.ToInt64(command.ExecuteScalar()) == 0) continue;
+
+            command.CommandText = $"DELETE FROM \"{table}\"";
+            command.Parameters.Clear();
+            command.ExecuteNonQuery();
+        }
     }
 
     public override void Drop()
@@ -240,6 +258,9 @@ internal class SqlServerGitDatabase : GitDatabase
 
         // the backup file is on the server, we can only tidy it up when the server is this machine.
         try { if (File.Exists(backupFile)) File.Delete(backupFile); } catch (IOException) { }
+
+        foreach (var table in ServerTables)
+            Execute(connection, $"IF OBJECT_ID(@table) IS NOT NULL DELETE FROM {Quote(Name)}.dbo.{Quote(table)}", ("@table", $"{Quote(Name)}.dbo.{Quote(table)}"));
     }
 
     public override void Drop()
