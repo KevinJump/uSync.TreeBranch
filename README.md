@@ -7,17 +7,17 @@
 
 Makes an Umbraco development site aware of the git checkout it runs from. Each git worktree (for example a parallel Claude Code session) gets its own database, ports and shared media, and uSync imports when the commit changes.
 
-## Setup
+## Install
 
-Reference the `uSync.TreeBranch` project (or package) from the site. That's it for worktrees: the composer wires everything up and `Program.cs` needs no changes.
-
-For the main checkout, one line turns on the same uSync defaults, so a fresh clone imports on its first boot:
-
-```json
-"Git": {
-  "uSyncDefaults": true
-}
 ```
+dotnet add package uSync.TreeBranch
+```
+
+That's the whole setup: there is nothing to add to `appsettings.json` or `Program.cs`. The package brings uSync with it, and only does anything on a development site (see below).
+
+The first time a development site starts with the package, uSync imports everything from the uSync folder, so the database matches the files on the branch. With uSync's default `ExportOnSave` those already match, but if your team doesn't commit its uSync files, expect the database to be put back to what the files say.
+
+## Setup notes
 
 If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
 
@@ -48,18 +48,18 @@ A site deployed from a git clone, or run locally as Production, does nothing: no
 ### In a linked worktree
 
 1. **Local settings**: settings files the site loads but git ignores (for example `appsettings.Local.json` holding the connection string) don't exist in a new worktree. They are read from the main checkout instead, in the same place in the configuration order.
-2. **uSync defaults**: `uSync:Settings:ImportOnFirstBoot` is turned on, unless the site sets it.
-3. **Database**
+2. **Database**
    - **SQLite**: the database file lives in the worktree's own `umbraco/Data` folder, so it is already separate. If it doesn't exist, it is copied from the main checkout's database with SQLite's backup API, which is safe while the main site is running.
    - **SQL Server**: the worktree uses `{database}_wt_{id}_{worktree}` on the same server. `{id}` is a short id for the clone, kept in `.git/usync-git-id`, so two clones (or two sites) sharing a server never mix up each other's worktree databases. If it doesn't exist, the main database is copied with `BACKUP ... WITH COPY_ONLY` and `RESTORE ... WITH MOVE` into the server's default data folders.
    - If there is nothing to copy (or `Seed` is `Empty`), `InstallUnattended` is switched on so Umbraco installs a fresh database and uSync's `ImportOnFirstBoot` fills it. This only happens when an unattended user is configured; without one, Umbraco shows its installer.
-4. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
-5. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`. If no pair is free, the site keeps its own urls.
+3. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
+4. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`. If no pair is free, the site keeps its own urls.
 
 If any of this fails, it's logged as an error and the site boots without the git setup. The setup is logged as it happens, so the reason is in the log even when Umbraco then fails to boot.
 
 ### In every checkout
 
+5. **uSync defaults**: `uSync:Settings:ImportOnFirstBoot` is turned on, unless the site sets it, so a fresh clone or a new worktree database fills itself from the uSync folder. Turn this off with `Git:uSyncDefaults: false`.
 6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. Only a full import (group `All`, or the configured `Import:Group`) with no errors records the commit; importing one group from the dashboard doesn't. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
 7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install. The default branch keeps the configured name, so turning this on doesn't move your existing database.
 
@@ -82,7 +82,7 @@ Anything the site sets itself always wins. These are the uSync settings that mat
 
 | uSync setting | uSync default | Here |
 |---|---|---|
-| `ImportOnFirstBoot` | `false` | `true` when unset (worktrees, or `uSyncDefaults`) |
+| `ImportOnFirstBoot` | `false` | `true` when unset (turn off with `uSyncDefaults: false`) |
 | `ImportAtStartup` | `None` | Leave it `None`. If it's on, uSync imports every boot and the commit check stands aside. |
 | `ExportAtStartup` | `None` | Leave it `None`, or a copied database can overwrite the branch's files. |
 | `ExportOnSave` | `All` | Backoffice changes in a worktree land as files on its branch. |
@@ -104,7 +104,7 @@ All optional. The defaults are shown.
 ```json
 "Git": {
   "Enabled": null,
-  "uSyncDefaults": null,
+  "uSyncDefaults": true,
   "DefaultBranch": null,
   "Db": {
     "NameByBranch": false,
@@ -130,7 +130,7 @@ All optional. The defaults are shown.
 | Setting | |
 |---|---|
 | `Enabled` | Turn everything on or off. Unset means on for development sites only (see above). |
-| `uSyncDefaults` | Fill in unset uSync settings (`ImportOnFirstBoot`). Unset means on in a worktree, off in the main checkout. |
+| `uSyncDefaults` | Fill in unset uSync settings (`ImportOnFirstBoot`). |
 | `DefaultBranch` | The default branch. Unset means work it out (see above). |
 | `Db:NameByBranch` | Name the database after the branch, except on the default branch. |
 | `Db:Template` | Database name. Placeholders: `{db}` (the configured name), `{branch}`, `{env}`. In the branch and environment, characters other than letters, digits, `_` and `.` become `_`, so `feature/x` becomes `feature_x`. |
