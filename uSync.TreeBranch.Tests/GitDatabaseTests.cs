@@ -13,6 +13,7 @@ public class GitDatabaseTests
         Assert.Equal("Umbraco", sqlite.Name);
         Assert.False(sqlite.IsSharedBetweenCheckouts);
         Assert.Equal(Path.GetFullPath("/site/umbraco/Data/Umbraco.sqlite.db"), sqlite.PhysicalPath);
+        Assert.Equal(sqlite.PhysicalPath, sqlite.Location);
     }
 
     [Fact]
@@ -36,6 +37,7 @@ public class GitDatabaseTests
 
         Assert.IsType<SqlServerGitDatabase>(database);
         Assert.Equal("Umbraco", database.Name);
+        Assert.Equal("Umbraco", database.Location);
         Assert.True(database.IsSharedBetweenCheckouts);
         Assert.Contains("Umbraco_wt_x", database.WithName("Umbraco_wt_x").ConnectionString);
     }

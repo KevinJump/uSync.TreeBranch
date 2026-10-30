@@ -301,18 +301,18 @@ internal static class GitSiteConfigurator
             source = candidates.FirstOrDefault(x => x.Exists());
             if (source is null)
             {
-                state.Log(LogLevel.Warning, "uSync Git: the main checkout's database {database} doesn't exist, nothing to copy", candidates[0].Name);
+                state.Log(LogLevel.Warning, "uSync Git: the main checkout's database {database} doesn't exist, nothing to copy", candidates[0].Location);
                 return false;
             }
 
             var timer = System.Diagnostics.Stopwatch.StartNew();
             target.CopyFrom(source);
-            state.Log(LogLevel.Information, "uSync Git: copied {source} to {target} in {elapsed}ms", source.Name, target.Name, timer.ElapsedMilliseconds);
+            state.Log(LogLevel.Information, "uSync Git: copied {source} to {target} in {elapsed}ms", source.Location, target.Location, timer.ElapsedMilliseconds);
             return true;
         }
         catch (Exception ex)
         {
-            state.Log(LogLevel.Error, "uSync Git: copying {source} to {target} failed: {error}", source?.Name, target.Name, ex.Message);
+            state.Log(LogLevel.Error, "uSync Git: copying {source} to {target} failed: {error}", source?.Location, target.Location, ex.Message);
             try { target.Drop(); } catch { /* leave whatever is there, the install will tell us */ }
             return false;
         }

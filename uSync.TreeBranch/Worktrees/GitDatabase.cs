@@ -21,6 +21,11 @@ internal abstract class GitDatabase
     public abstract string ConnectionString { get; }
 
     /// <summary>
+    ///  Where the database is, for log messages. SQLite copies share a name, so this is the file path.
+    /// </summary>
+    public virtual string Location => Name;
+
+    /// <summary>
     ///  SQLite files live in the site's own umbraco/Data folder, so each worktree is already
     ///  isolated. SQL Server databases are shared by every checkout that points at the server.
     /// </summary>
@@ -97,6 +102,8 @@ internal class SqliteGitDatabase : GitDatabase
     }
 
     public string PhysicalPath => Path.GetFullPath(_builder.DataSource.Replace(DataDirectoryPlaceholder, _dataDirectory));
+
+    public override string Location => PhysicalPath;
 
     public override GitDatabase WithName(string name)
     {
