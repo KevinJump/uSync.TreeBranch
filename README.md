@@ -4,16 +4,38 @@
 
 This project is experimental and should not be used in production environments without thorough testing.
 
-## Overview
+Makes an Umbraco development site aware of the git checkout it runs from. Each git worktree (for example a parallel Claude Code session) gets its own database, ports and shared media, and uSync imports when the commit changes.
 
-uSync Git Edition makes an Umbraco site aware of the git checkout it runs from. It covers two workflows:
+## Setup
 
-- **Branch switching**: optionally give each branch its own database, and import from uSync when the commit changes.
-- **Git worktrees** (for example parallel Claude Code sessions, each in its own worktree): every worktree gets its own database, copied from the main checkout, its own ports, and the main checkout's media.
+Reference the `uSync.GitEdition` project (or package) from the site. That's it for worktrees: the composer wires everything up and `Program.cs` needs no changes.
+
+For the main checkout, one line turns on the same uSync defaults, so a fresh clone imports on its first boot:
+
+```json
+"Git": {
+  "uSyncDefaults": true
+}
+```
+
+If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
+
+A fresh install (`Seed: Empty`, `NameByBranch`, or nothing to copy) needs an unattended user: `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work). Without one the site shows Umbraco's installer instead of failing to boot.
+
+Calling `.AdduSyncGit()` on the Umbraco builder is still supported, but not needed.
+
+## Requirements
+
+- .NET 10
+- Umbraco CMS 17.3+
+- uSync 17.5+
+- A git repository
+
+## How it works
 
 Everything happens inside the site at startup. Nothing is written to `appsettings.json`: the values go into an in-memory configuration source, so they work however the site is started (Visual Studio, Rider, `dotnet run`, an AI agent).
 
-## Development sites only
+### Development sites only
 
 None of this runs unless the site is a development site:
 
@@ -21,8 +43,6 @@ None of this runs unless the site is a development site:
 - `Umbraco:CMS:Hosting:Debug` is `true`, or the ASP.NET environment is `Development`.
 
 A site deployed from a git clone, or run locally as Production, does nothing: no database changes, no imports, no clean up. It logs `uSync Git: off` with the reason. `Git:Enabled` overrides this either way.
-
-## What happens at startup
 
 ### In a linked worktree
 
@@ -35,12 +55,16 @@ A site deployed from a git clone, or run locally as Production, does nothing: no
 4. **Media**: `Umbraco:CMS:Global:UmbracoMediaPhysicalRootPath` points at the main checkout's `wwwroot/media`, which is gitignored and so missing from the worktree. Skipped if you've set that path yourself.
 5. **Ports**: a stable https/http pair in the 45000 range, picked from a hash of the worktree name. The same worktree gets the same ports on every run unless something else holds them. This overrides `launchSettings.json`. If no pair is free, the site keeps its own urls.
 
-If any of this fails, it's logged as an error and the site boots without the git setup.
+If any of this fails, it's logged as an error and the site boots without the git setup. The setup is logged as it happens, so the reason is in the log even when Umbraco then fails to boot.
 
 ### In every checkout
 
 6. **Import on commit change**: when Umbraco starts, the HEAD commit is compared with the commit that was last imported into *this database* (stored in Umbraco's key-value table, so a copied database brings it along). If they differ, uSync imports. A plain restart doesn't import. Only a full import (group `All`, or the configured `Import:Group`) with no errors records the commit; importing one group from the dashboard doesn't. While the uSync folder has uncommitted changes the import is skipped, because those are normally exports from this site.
 7. **Branch databases** (off by default): with `NameByBranch`, the database name comes from `Template`, so switching branch switches database. A branch with no database yet gets a fresh unattended install. The default branch keeps the configured name, so turning this on doesn't move your existing database.
+
+### In the main checkout
+
+8. **Tidy up**: SQL Server databases carrying this clone's `_wt_{id}_` marker, whose worktree git no longer knows about, are dropped in the background after startup. A worktree counts until git removes it from `.git/worktrees` (`git worktree remove` or `git worktree prune`), so a moved worktree, or one on a drive that isn't connected, keeps its database. SQLite worktree databases go when the worktree folder is deleted.
 
 ### The default branch
 
@@ -51,27 +75,7 @@ The default branch is, in order: `Git:DefaultBranch` if set, the branch `origin/
 
 Only the parts that are added (branch, environment, worktree) have characters other than letters, digits, `_` and `.` changed to `_`. The configured name is never touched.
 
-### In the main checkout
-
-8. **Tidy up**: SQL Server databases carrying this clone's `_wt_{id}_` marker, whose worktree git no longer knows about, are dropped in the background after startup. A worktree counts until git removes it from `.git/worktrees` (`git worktree remove` or `git worktree prune`), so a moved worktree, or one on a drive that isn't connected, keeps its database. SQLite worktree databases go when the worktree folder is deleted.
-
-## Setup
-
-### Minimal
-
-Reference the `uSync.GitEdition` project (or package) from the site. That's it for worktrees: the composer wires everything up, `Program.cs` needs no changes, and the settings above are filled in when the site starts in a worktree.
-
-For the main checkout, one line turns on the same uSync defaults, so a fresh clone imports on its first boot:
-
-```json
-"Git": {
-  "uSyncDefaults": true
-}
-```
-
-If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
-
-### What the defaults rely on
+### uSync settings the defaults rely on
 
 Anything the site sets itself always wins. These are the uSync settings that matter, with uSync's own defaults, which already suit a git workflow apart from `ImportOnFirstBoot`:
 
@@ -81,10 +85,6 @@ Anything the site sets itself always wins. These are the uSync settings that mat
 | `ImportAtStartup` | `None` | Leave it `None`. If it's on, uSync imports every boot and the commit check stands aside. |
 | `ExportAtStartup` | `None` | Leave it `None`, or a copied database can overwrite the branch's files. |
 | `ExportOnSave` | `All` | Backoffice changes in a worktree land as files on its branch. |
-
-A fresh install (`Seed: Empty`, `NameByBranch`, or nothing to copy) needs an unattended user: `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work). Without one the site shows Umbraco's installer instead of failing to boot.
-
-Calling `.AdduSyncGit()` on the Umbraco builder is still supported, but not needed.
 
 ### Claude Code hooks
 
@@ -149,7 +149,7 @@ All optional. The defaults are shown.
 - SQL Server copies need `BACKUP` and `RESTORE` permissions, so not Azure SQL. LocalDB with `AttachDbFilename` isn't copied (the file is attached); the worktree gets an empty install instead.
 - One site per worktree: ports are picked per worktree, not per site.
 - The commit check uses HEAD only, so `SkipWhenDirty: false` is the way to import uncommitted uSync files you edited by hand.
-- On a fresh database both uSync's first boot import and the commit import run. The second finds nothing to change.
+- On a fresh database both uSync's first boot import and the commit import are requested. uSync skips the second as a duplicate.
 
 ## Changes from the v15 version
 
@@ -159,13 +159,6 @@ All optional. The defaults are shown.
 - The last imported commit is kept in the database instead of `uSync/git.meta`.
 - The commit-based startup import is switched back on, and only looks at the uSync folders for uncommitted changes.
 
-## Requirements
-
-- .NET 10
-- Umbraco CMS 17.3+
-- uSync 17.5+
-- A git repository
-
 ## Project structure
 
 ```
@@ -174,9 +167,9 @@ uSyncGitRules/
 │   ├── Configuration/     # uSyncGitSettings ("Git" section)
 │   ├── Git/               # GitContext: reads .git files, works before Umbraco is up
 │   ├── Worktrees/         # configuration source, database copy/drop, port picking
-│   ├── Notifications/     # commit-aware import, startup logging, orphan clean up
+│   ├── Notifications/     # commit-aware import, orphan clean up
 │   ├── uSyncGitService.cs # LibGit2Sharp: commit, status
-│   └── Composer.cs
+│   └── Composer.cs        # applies the git setup and logs what it did
 └── uSync.Site/            # example site
 ```
 

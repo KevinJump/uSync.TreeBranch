@@ -12,10 +12,9 @@ using uSync.GitEdition.Worktrees;
 namespace uSync.GitEdition.Notifications;
 
 /// <summary>
-///  Reports what the site configurator did, and tidies up databases left behind by deleted worktrees.
+///  Tidies up databases left behind by deleted worktrees.
 /// </summary>
 internal class uSyncGitSiteHandler :
-    INotificationHandler<UmbracoApplicationStartingNotification>,
     INotificationHandler<UmbracoApplicationStartedNotification>
 {
     private readonly GitSiteState _state;
@@ -36,16 +35,6 @@ internal class uSyncGitSiteHandler :
         _configuration = configuration;
         _hostEnvironment = hostEnvironment;
         _settings = settings.Value.Worktree;
-    }
-
-    public void Handle(UmbracoApplicationStartingNotification notification)
-    {
-        foreach (var (level, exception, message, args) in _state.Messages)
-        {
-#pragma warning disable CA2254 // the templates are constants, they're just stored for later.
-            _logger.Log(level, exception, message, args);
-#pragma warning restore CA2254
-        }
     }
 
     public void Handle(UmbracoApplicationStartedNotification notification)

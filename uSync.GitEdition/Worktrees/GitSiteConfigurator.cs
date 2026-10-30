@@ -15,7 +15,7 @@ using uSync.GitEdition.Git;
 namespace uSync.GitEdition.Worktrees;
 
 /// <summary>
-///  What the configurator did, kept so it can be logged once logging is up.
+///  What the configurator did. Messages are kept and logged by the caller, the configurator runs before it has a logger.
 /// </summary>
 public class GitSiteState
 {

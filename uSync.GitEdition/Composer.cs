@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Composing;
@@ -36,11 +37,19 @@ public static class uSyncGitBootExtensions
             ? GitSiteConfigurator.Apply(configurationBuilder, builder.Config, GetContentRoot(builder.Config))
             : new GitSiteState();
 
+        // logged now, not at startup, so a site that fails to boot (e.g. a bad connection string) still says why.
+        var logger = builder.BuilderLoggerFactory.CreateLogger(typeof(GitSiteConfigurator));
+        foreach (var (level, exception, message, args) in state.Messages)
+        {
+#pragma warning disable CA2254 // the templates are constants, they're just stored until logging is up.
+            logger.Log(level, exception, message, args);
+#pragma warning restore CA2254
+        }
+
         builder.Services.AddSingleton(state);
         builder.Services.Configure<uSyncGitSettings>(builder.Config.GetSection(uSyncGitSettings.Section));
         builder.Services.AddSingleton<uSyncGitService>();
 
-        builder.AddNotificationHandler<UmbracoApplicationStartingNotification, uSyncGitSiteHandler>();
         builder.AddNotificationHandler<UmbracoApplicationStartedNotification, uSyncGitSiteHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification, uSyncGitApplicationStartingHandler>();
         builder.AddNotificationAsyncHandler<uSyncImportCompletedNotification, uSyncGitApplicationStartingHandler>();
