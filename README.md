@@ -21,6 +21,16 @@ The first time a development site starts with the package, uSync imports everyth
 
 If worktrees live inside the repo (Claude Code puts them in `.claude/worktrees/`), add that folder to `.gitignore`.
 
+If the site's `.csproj` is also inside the repo root (the default `dotnet new umbraco` layout), exclude the worktrees from the build too. Otherwise the SDK's default globs pick up every `.cs` and `.cshtml` in them, and the main site fails to build with duplicate types and views as soon as a worktree exists:
+
+```xml
+<PropertyGroup>
+  <DefaultItemExcludes>$(DefaultItemExcludes);.claude/**</DefaultItemExcludes>
+</PropertyGroup>
+```
+
+With `Worktree:ShareMedia` on, media uploaded on a worktree site is written to the main checkout's `wwwroot/media`, and stays there whether or not the branch is merged.
+
 A fresh install (`Seed: Empty`, `NameByBranch`, or nothing to copy) needs an unattended user: `Umbraco:CMS:Unattended:UnattendedUserName`, `UnattendedUserEmail` and `UnattendedUserPassword` (environment variables work). Without one the site shows Umbraco's installer instead of failing to boot.
 
 Calling `.AdduSyncGit()` on the Umbraco builder is still supported, but not needed.
