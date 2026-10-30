@@ -1,0 +1,101 @@
+# The real publish happens in release.yml, triggered by a version tag, via NuGet trusted
+# publishing. This workflow is otherwise build-verification only - manually triggered rather
+# than running on every push to main. Running it also publishes a prerelease build to
+# nightly.jumoo.uk, so a build is fetchable without waiting for a tagged release.
+
+name: Build and Package
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  config: Release
+  out_folder: ./build-out/
+  # the package project is the whole of what ships - not the solution, and not the
+  # uSync.Site test site.
+  package_project: ./uSync.TreeBranch/uSync.TreeBranch.csproj
+  # the version prereleases build towards until the first release is tagged on this branch.
+  first_version: 17.0.0
+
+jobs:
+  package-up:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # full history - the prerelease version step below walks tag ancestry
+          # (git tag --merged) to find the last release on this branch.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      # prerelease version = the next patch after the last release tag on this branch, plus
+      # a build number - the version isn't bumped between releases, so the tag is the only
+      # reliable source here. Before the first release there is no tag, so first_version is
+      # used as is.
+      - name: compute prerelease version
+        id: prerelease_version
+        run: |
+          latest_tag=$(git tag --merged HEAD --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$latest_tag" ]; then
+            base_version="${{ env.first_version }}"
+            echo "No release tag on this branch yet -> first release: $base_version"
+          else
+            IFS='.' read -r major minor patch <<< "${latest_tag#v}"
+            base_version="${major}.${minor}.$((patch + 1))"
+            echo "Last release: $latest_tag -> next: $base_version"
+          fi
+          echo "version=${base_version}-prerelease.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: restore
+        run: dotnet restore ${{ env.package_project }} --locked-mode
+
+      - name: build
+        run: >
+          dotnet build ${{ env.package_project }}
+          -c ${{ env.config }} --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      # deliberately not --no-build: the version has to be stamped onto the assembly as well
+      # as the nuspec, so this step rebuilds with it.
+      - name: package
+        run: >
+          dotnet pack ${{ env.package_project }}
+          -c ${{ env.config }}
+          --output ${{ env.out_folder }}
+          /p:version=${{ steps.prerelease_version.outputs.version }}
+          -p:ContinuousIntegrationBuild=true
+
+      # nightly-feed-config is private. Its org-wide Actions access only reaches private
+      # repos, so check it out with the org NIGHTLY_FEED_PAT instead - this works whether
+      # the calling repo is public or private, and keeps working if a repo goes public.
+      - name: Checkout nightly-feed-config
+        uses: actions/checkout@v7
+        with:
+          repository: Jumoo/nightly-feed-config
+          token: ${{ secrets.NIGHTLY_FEED_PAT }}
+          path: .nightly-feed-config
+
+      # publish to nightly.jumoo.uk on every run, so a build is fetchable immediately
+      # rather than waiting for a tagged release - this workflow is manually triggered,
+      # so there's no separate "rehearsal" run to exclude here.
+      - name: Publish to nightly feed
+        uses: ./.nightly-feed-config
+        with:
+          packages: ${{ env.out_folder }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

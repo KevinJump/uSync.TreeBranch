@@ -1,0 +1,64 @@
+name: PR Project Build
+
+permissions:
+  contents: read
+
+# NOTE: Jumoo repos release from "{version}/main" - a branch per Umbraco major. Plain
+# "main" is kept in the filter so a re-created main, or a branch that hasn't been moved
+# over yet, still builds - a past repo had a workflow that silently never ran because its
+# filter didn't match the branch it was meant to watch.
+on:
+  pull_request:
+    branches: [ "main", "*/main" ]
+    paths-ignore:
+      - "**.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  config: Release
+  # the package project is the whole of what ships - not the solution, and not the
+  # uSync.Site test site.
+  package_project: ./uSync.TreeBranch/uSync.TreeBranch.csproj
+  test_project: ./uSync.TreeBranch.Tests/uSync.TreeBranch.Tests.csproj
+
+jobs:
+  build-project:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: restore
+        run: dotnet restore ${{ env.package_project }} --locked-mode
+
+      - name: build
+        run: >
+          dotnet build ${{ env.package_project }}
+          -c ${{ env.config }} --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      # restored separately, not --locked-mode: folding it into the package project's
+      # locked restore would transitively pin the package's own fast-moving version.
+      - name: restore tests
+        run: dotnet restore ${{ env.test_project }}
+
+      # the git tests run real git commands (init, commit, worktree add), which the
+      # runner has. Identity is set here so the test commits don't fail on a bare runner.
+      - name: test
+        env:
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.com
+          GIT_COMMITTER_NAME: ci
+          GIT_COMMITTER_EMAIL: ci@example.com
+        run: >
+          dotnet test ${{ env.test_project }}
+          -c ${{ env.config }} --no-restore

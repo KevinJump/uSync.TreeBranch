@@ -1,0 +1,40 @@
+# Canonical dependabot config for a Jumoo package repo. Copy to .github/dependabot.yml.
+# Rules behind it: context/jumoo/dependencies-and-builds.md in jumoo-context.
+#
+# - One npm entry per backoffice client folder that has its own package-lock.json.
+#   Point it at the folder holding the lock file (in a workspace repo that is the root).
+#   No client, no npm entry.
+# - Minor and patch updates arrive as one grouped PR per ecosystem. Majors are left out
+#   of the group so each one is its own PR, reviewed on its own.
+# - Repo-specific ignores go below the template ones, with a comment saying why.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Umbraco and our own packages (Jumoo.*, which ship one branch per Umbraco major) set
+    # the minimum for anyone installing this package, so they move when we move them.
+    # This also opts them out of dependabot security updates.
+    ignore:
+      - dependency-name: "Umbraco.*"
+      - dependency-name: "Jumoo.*"
+    groups:
+      nuget-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

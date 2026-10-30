@@ -1,0 +1,64 @@
+name: CodeQL
+
+# NOTE: code scanning upload needs GitHub Advanced Security. Public repos get it free;
+# a private repo without it enabled fails every leg with "Advanced Security must be
+# enabled for this repository to use code scanning" - the analysis itself runs fine, it's
+# only the upload that's rejected. If that happens, comment out the push/pull_request/
+# schedule triggers below (keep workflow_dispatch) until Advanced Security is turned on
+# under Settings > Code security - see Jumoo/Jumoo.TranslationManager.AI's codeql.yml for
+# the disabled form.
+
+on:
+  push:
+    branches: [ "main", "*/main" ]
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    branches: [ "main", "*/main" ]
+    paths-ignore:
+      - "**.md"
+  schedule:
+    # weekly, so advisories published after a change still get picked up
+    - cron: "33 8 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # build-mode none: CodeQL scans the source without compiling it, so this
+          # doesn't need the sdk, node, a restore, or the locked-mode dance.
+          - language: actions
+            build-mode: none
+          - language: csharp
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
