@@ -218,12 +218,12 @@
       },
       "uSync.BackOffice": {
         "type": "Direct",
-        "requested": "[17.5.1, )",
-        "resolved": "17.5.1",
-        "contentHash": "lgIw2x4dXfuIYsTppbf9u3vcgLeRy6LmU6v3wKEhvGK3GP3UI2c8rPtSWwjS6osrBwguWzDLDptjgKwhud6W+Q==",
+        "requested": "[17.6.3, )",
+        "resolved": "17.6.3",
+        "contentHash": "9V7xmlNy5th7fhBr5v5LNS2Wez0YE2qljOfMFT9yedMubA7iRfHvG1wiI89z2YdspYUWUNePQLC6XEdWaLk4JA==",
         "dependencies": {
-          "uSync.Community.Contrib": "17.5.1",
-          "uSync.Core": "17.5.1"
+          "uSync.Community.Contrib": "17.6.3",
+          "uSync.Core": "17.6.3"
         }
       },
       "Asp.Versioning.Abstractions": {
@@ -1877,16 +1877,16 @@
       },
       "uSync.Community.Contrib": {
         "type": "Transitive",
-        "resolved": "17.5.1",
-        "contentHash": "T9PqhrP7nON0pvwE4lLqgpWXzRUiwJjHz9+VIKV9R8XPP9dlJO0JxP/pGJ10rtAUcCghuNJRIvqOoB3CcQPIHQ==",
+        "resolved": "17.6.3",
+        "contentHash": "tjq/Juf2NLLis35trTvlqJRUTYQIESNSbwcc7zDT22ZYFhXk23Bt1cznSRZSGsm968husEpwELB5zPV4diO2vQ==",
         "dependencies": {
-          "uSync.Core": "17.5.1"
+          "uSync.Core": "17.6.3"
         }
       },
       "uSync.Core": {
         "type": "Transitive",
-        "resolved": "17.5.1",
-        "contentHash": "cGWRoOfMLXz8PR1m114v4PB3+zc31kCfSf7xktrNR6V/otFBiTBr/VE9a1NkxLXGr1RNzbaCEYwANn6xMnBfYQ==",
+        "resolved": "17.6.3",
+        "contentHash": "LvwnPAg1rVZTQ9J9J7Ct41UsaUTRDzCBQd6o1g0SVTijmz/flW338NXTWqtm9yaTKh6/dBQHQs/pSogZ3LsmPA==",
         "dependencies": {
           "Umbraco.Cms.Api.Management": "17.3.0",
           "Umbraco.Cms.Web.Website": "17.3.0"
